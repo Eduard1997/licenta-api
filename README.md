@@ -1,0 +1,2 @@
+# licenta-api
+License server
