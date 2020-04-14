@@ -20,5 +20,6 @@ python-dateutil==2.8.1
 requests==2.23.0
 scholarly==0.2.5
 six==1.14.0
+soupsieve==2.0
 urllib3==1.25.8
 Werkzeug==1.0.0
