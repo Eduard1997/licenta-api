@@ -1,2 +1,4 @@
 .\virtual\Scripts\activate
 .\virtual\Scripts\deactivate
+rm -rI virtual
+source virtual/bin/activate
