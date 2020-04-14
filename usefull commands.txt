@@ -1,1 +1,2 @@
-.\env\Scripts\activate
+.\virtual\Scripts\activate
+.\virtual\Scripts\deactivate

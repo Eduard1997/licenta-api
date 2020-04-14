@@ -62,15 +62,13 @@ def get_test():
     return jsonify('test')
 
 
-# @application.after_request
-# def after_request(response):
-#     response.headers.add('Access-Control-Allow-Origin', '*')
-#     response.headers.add('Access-Control-Max-Age', '1800')
-#     response.headers.add('Access-Control-Allow-Headers', 'Origin,Content-Type,Authorization,X-Requested-With,X-Auth-Token')
-#     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-#     response.headers.add('Access-Control-Allow-Credentials', 'false')
-#     response.headers.add('Status', '200 OK')
-#     return response
+@application.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Origin,Content-Type,Authorization,X-Requested-With,X-Auth-Token')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'false')
+    return response
 
 
 if __name__ == '__main__':
