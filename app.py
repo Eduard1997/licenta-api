@@ -1,12 +1,17 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flaskext.mysql import MySQL
+from pybliometrics.scopus import AuthorSearch
+from pybliometrics.scopus import ScopusSearch
+import requests
+import simplejson
 import scholarly
 import json
 
 # instantiate the app
 application = Flask(__name__)
 application.config.from_object(__name__)
+
 
 #mysql connection
 mysql = MySQL()
@@ -49,6 +54,9 @@ def get_docs_by_author():
         search_existing_author_values = author_name
         cursor.execute(search_existing_author_query, '%'+search_existing_author_values+'%')
         values = cursor.fetchall()
+
+        test_scopus = search_author_scopus()
+        print(test_scopus)
 
         if len(values) == 0:
             search_query = scholarly.search_author(author_name)
@@ -106,7 +114,8 @@ def get_publications_for_author():
         publication_response['publications'] = {}
         author_name = request.json['authorName']
 
-        search_existing_author_query = 'SELECT * from authors WHERE name=%s AND author_publications_scholar IS NOT NULL'
+
+        search_existing_author_query = 'SELECT * from authors WHERE name LIKE %s AND author_publications_scholar IS NOT NULL'
         search_existing_author_values = author_name
         cursor.execute(search_existing_author_query, '%'+search_existing_author_values+'%')
         values = cursor.fetchall()
@@ -119,20 +128,21 @@ def get_publications_for_author():
                 publication_response['publications'][pub.bib['title']] = pub.bib
                 publication_response['publications'][pub.bib['title']]['url'] = pub.bib.get('url')
             sql = "UPDATE authors SET author_publications_scholar = %s WHERE name = %s"
-            values = (json.dumps(publication_response), author_name)
+            values = (json.dumps(publication_response), '%'+author_name+'%')
             cursor.execute(sql, values)
             conn.commit()
         else:
             result = []
-            search_existing_author_query = 'SELECT author_publications_scholar from authors where name=%s'
+            search_existing_author_query = 'SELECT author_publications_scholar FROM authors WHERE name LIKE %s'
             search_existing_author_values = author_name
-            cursor.execute(search_existing_author_query, search_existing_author_values)
+            cursor.execute(search_existing_author_query, '%'+search_existing_author_values+'%')
             values = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
             for row in values:
                 row = dict(zip(columns, row))
                 result.append(row)
             publications = json.loads(result[0]['author_publications_scholar'])
+
             for key, value in publications['publications'].items():
                 publication_response['publications'][key] = value
                 publication_response['publications'][key]['url'] = value['url']
@@ -142,9 +152,9 @@ def get_publications_for_author():
         return jsonify(publication_response)
 
 
-@application.route('/get-test', methods=['GET'])
-def get_test():
-    return jsonify('test')
+def search_author_scopus():
+    s = ScopusSearch('FIRSTAUTH ( kitchin  j.r. )')
+    return s
 
 
 @application.after_request
