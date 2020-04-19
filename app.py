@@ -55,9 +55,6 @@ def get_docs_by_author():
         cursor.execute(search_existing_author_query, '%'+search_existing_author_values+'%')
         values = cursor.fetchall()
 
-        test_scopus = search_author_scopus()
-        print(test_scopus)
-
         if len(values) == 0:
             search_query = scholarly.search_author(author_name)
             author = next(search_query).fill()
@@ -73,6 +70,9 @@ def get_docs_by_author():
             author_response['i10_index'] = author.i10index
             author_response['i10_index5y'] = author.i10index5y
             author_response['interests'] = author.interests
+            author_response['coauthors'] = {}
+            for coauthor in author.coauthors:
+                author_response['coauthors'][coauthor.name] = coauthor.affiliation
 
             sql = "INSERT into authors(name, author_details_scholar) VALUES(%s, %s)"
             values = (author_response['author_name'], json.dumps(author_response))
@@ -97,6 +97,7 @@ def get_docs_by_author():
                 author_response['i10_index'] = extra_details['i10_index']
                 author_response['i10_index5y'] = extra_details['i10_index5y']
                 author_response['interests'] = extra_details['interests']
+                author_response['coauthors'] = extra_details['coauthors']
 
     except Exception as e:
         return jsonify({'error': str(e)})
@@ -106,7 +107,7 @@ def get_docs_by_author():
 
 @application.route('/get-publications-for-author', methods=['POST'])
 def get_publications_for_author():
-    try:
+    #try:
         conn = mysql.connect()
         cursor = conn.cursor()
 
@@ -123,11 +124,13 @@ def get_publications_for_author():
         if len(values) == 0:
             search_query = scholarly.search_author(author_name)
             author = next(search_query).fill()
+
+            pub = author.publications[0].fill()
             for pub in author.publications:
-                pub.fill()
+                print([citation.bib['title'] for citation in pub.get_citedby()])
                 publication_response['publications'][pub.bib['title']] = pub.bib
                 publication_response['publications'][pub.bib['title']]['url'] = pub.bib.get('url')
-            sql = "UPDATE authors SET author_publications_scholar = %s WHERE name = %s"
+            sql = "UPDATE authors SET author_publications_scholar = %s WHERE name LIKE %s"
             values = (json.dumps(publication_response), '%'+author_name+'%')
             cursor.execute(sql, values)
             conn.commit()
@@ -146,15 +149,14 @@ def get_publications_for_author():
             for key, value in publications['publications'].items():
                 publication_response['publications'][key] = value
                 publication_response['publications'][key]['url'] = value['url']
-    except Exception as e:
-        return jsonify({'error': str(e)})
-    else:
+                publication_response['publications'][key]['cited_by'] = value['cited_by']
+    #except Exception as e:
+        #return jsonify({'error': str(e.with_traceback())})
+    #else:
         return jsonify(publication_response)
 
 
-def search_author_scopus():
-    s = ScopusSearch('FIRSTAUTH ( kitchin  j.r. )')
-    return s
+
 
 
 @application.after_request
