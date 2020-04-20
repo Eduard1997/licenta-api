@@ -107,14 +107,13 @@ def get_docs_by_author():
 
 @application.route('/get-publications-for-author', methods=['POST'])
 def get_publications_for_author():
-    #try:
+    try:
         conn = mysql.connect()
         cursor = conn.cursor()
 
         publication_response = {}
         publication_response['publications'] = {}
         author_name = request.json['authorName']
-
 
         search_existing_author_query = 'SELECT * from authors WHERE name LIKE %s AND author_publications_scholar IS NOT NULL'
         search_existing_author_values = author_name
@@ -124,12 +123,34 @@ def get_publications_for_author():
         if len(values) == 0:
             search_query = scholarly.search_author(author_name)
             author = next(search_query).fill()
-
-            pub = author.publications[0].fill()
             for pub in author.publications:
-                print([citation.bib['title'] for citation in pub.get_citedby()])
-                publication_response['publications'][pub.bib['title']] = pub.bib
-                publication_response['publications'][pub.bib['title']]['url'] = pub.bib.get('url')
+                pub.fill()
+                publication_response['publications'][pub.bib['title'].lower().title().replace(".", "")] = pub.bib
+                publication_response['publications'][pub.bib['title'].lower().title().replace(".", "")]['url'] = pub.bib.get('url')
+
+            scopus_author_data = requests.get(
+                'http://api.elsevier.com/content/search/scopus?query=' + author_name + '&apiKey=acf90e6867d5a1b99ca5ba2f91935664').content
+            decode_scopus_author_data = json.loads(scopus_author_data)
+            for item in decode_scopus_author_data['search-results']['entry']:
+                if item['dc:title'].lower().title().replace(".", "") in publication_response['publications']:
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['scopus_link'] = item['link'][2]['@href']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['aggregation_type'] = item['prism:aggregationType']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['subtype_description'] = item['subtypeDescription']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['publication_name'] = item['prism:publicationName']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['cited_by'] = item['citedby-count']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['cited_by_link'] = item['link'][3]['@href']
+                else:
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")] = {}
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['title'] = item['dc:title'].lower().title().replace(".", "")
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['url'] = item['link'][2]['@href']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['aggregation_type'] = item['prism:aggregationType']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['subtype_description'] = item['subtypeDescription']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['publication_name'] = item['prism:publicationName']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['cited_by'] = item['citedby-count']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['cited_by_link'] = item['link'][3]['@href']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['eprint'] = '-'
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['year'] = item['prism:coverDate'].split('-')[0]
+
             sql = "UPDATE authors SET author_publications_scholar = %s WHERE name LIKE %s"
             values = (json.dumps(publication_response), '%'+author_name+'%')
             cursor.execute(sql, values)
@@ -149,10 +170,9 @@ def get_publications_for_author():
             for key, value in publications['publications'].items():
                 publication_response['publications'][key] = value
                 publication_response['publications'][key]['url'] = value['url']
-                publication_response['publications'][key]['cited_by'] = value['cited_by']
-    #except Exception as e:
-        #return jsonify({'error': str(e.with_traceback())})
-    #else:
+    except Exception as e:
+        return jsonify({'error': str(e.with_traceback())})
+    else:
         return jsonify(publication_response)
 
 
