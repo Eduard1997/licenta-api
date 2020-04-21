@@ -7,6 +7,8 @@ import requests
 import simplejson
 import scholarly
 import json
+import xplore
+from dblp_pub import dblp
 
 # instantiate the app
 application = Flask(__name__)
@@ -44,6 +46,7 @@ def hello():
 @application.route('/get-docs-by-author', methods=['POST'])
 def get_docs_by_author():
     try:
+
         conn = mysql.connect()
         cursor = conn.cursor()
 
@@ -54,6 +57,18 @@ def get_docs_by_author():
         search_existing_author_values = author_name
         cursor.execute(search_existing_author_query, '%'+search_existing_author_values+'%')
         values = cursor.fetchall()
+
+        # query = xplore.xploreapi.XPLORE('khvns7n2jca9e6fetnmrepn9')
+        # query.abstractText(author_name)
+        # data = query.callAPI()
+        # print(data)
+
+        authors = dblp.search(['pistol ionut'])
+        print(authors[3].publications)
+        # print(michael)
+
+
+
 
         if len(values) == 0:
             search_query = scholarly.search_author(author_name)
