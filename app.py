@@ -9,6 +9,7 @@ import scholarly
 import json
 import xplore
 from dblp_pub import dblp
+from bs4 import BeautifulSoup, SoupStrainer
 
 # instantiate the app
 application = Flask(__name__)
@@ -44,11 +45,37 @@ def hello():
 
 @application.route('/get-docs-by-author', methods=['POST'])
 def get_docs_by_author():
-    try:
+    #try:
 
         conn = mysql.connect()
         cursor = conn.cursor()
 
+        #-----
+
+
+
+        scholar_url = 'https://scholar.google.com/scholar?hl=ro&as_sdt=0%2C5&q=' + request.json['author_name']
+
+        scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
+        author_details = scholar_page.find("td", {"valign": "top"})
+        author_details_link = 'https://scholar.google.com' + author_details.findChildren("a")[0]['href']
+
+        author_details_page = BeautifulSoup(requests.get(author_details_link).content, 'html.parser')
+        author_name = author_details_page.find("div", {"id": "gsc_prf_in"}).get_text()
+        author_picture = 'https://scholar.google.com' + author_details_page.find("div", {"id": "gsc_prf_pua"}).findChildren("img")[0]["src"]
+        author_affiliation = author_details_page.find("a", {"class": "gsc_prf_ila"}).get_text()
+        author_cites_per_year = []
+        author_cites_years = author_details_page.find_all("span", {"class": "gsc_g_t"})
+        author_cites_number_per_year = author_details_page.find_all("span", {"class": "gsc_g_al"})
+        for i in range(0, len(author_cites_years)):
+            author_cites_per_year.append({author_cites_years[i].get_text(): author_cites_number_per_year[i].get_text()})
+        author_total_cites = author_details_page.find("td", {"class": "gsc_rsb_std"}).get_text()
+
+
+        print(author_total_cites)
+        return 'da'
+
+        #----
         author_response = {}
         author_name = request.json['author_name']
 
@@ -106,10 +133,10 @@ def get_docs_by_author():
                 author_response['interests'] = extra_details['interests']
                 author_response['coauthors'] = extra_details['coauthors']
 
-    except Exception as e:
-        return jsonify({'error': str(e)})
-    else:
-        return jsonify(author_response)
+    #except Exception as e:
+        #return jsonify({'error': str(e)})
+    #else:
+        #return jsonify(author_response)
 
 
 @application.route('/get-publications-for-author', methods=['POST'])
