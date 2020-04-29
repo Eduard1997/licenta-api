@@ -45,37 +45,11 @@ def hello():
 
 @application.route('/get-docs-by-author', methods=['POST'])
 def get_docs_by_author():
-    #try:
+    try:
 
         conn = mysql.connect()
         cursor = conn.cursor()
 
-        #-----
-
-
-
-        scholar_url = 'https://scholar.google.com/scholar?hl=ro&as_sdt=0%2C5&q=' + request.json['author_name']
-
-        scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
-        author_details = scholar_page.find("td", {"valign": "top"})
-        author_details_link = 'https://scholar.google.com' + author_details.findChildren("a")[0]['href']
-
-        author_details_page = BeautifulSoup(requests.get(author_details_link).content, 'html.parser')
-        author_name = author_details_page.find("div", {"id": "gsc_prf_in"}).get_text()
-        author_picture = 'https://scholar.google.com' + author_details_page.find("div", {"id": "gsc_prf_pua"}).findChildren("img")[0]["src"]
-        author_affiliation = author_details_page.find("a", {"class": "gsc_prf_ila"}).get_text()
-        author_cites_per_year = []
-        author_cites_years = author_details_page.find_all("span", {"class": "gsc_g_t"})
-        author_cites_number_per_year = author_details_page.find_all("span", {"class": "gsc_g_al"})
-        for i in range(0, len(author_cites_years)):
-            author_cites_per_year.append({author_cites_years[i].get_text(): author_cites_number_per_year[i].get_text()})
-        author_total_cites = author_details_page.find("td", {"class": "gsc_rsb_std"}).get_text()
-
-
-        print(author_total_cites)
-        return 'da'
-
-        #----
         author_response = {}
         author_name = request.json['author_name']
 
@@ -90,23 +64,50 @@ def get_docs_by_author():
         # print(data)
 
         if len(values) == 0:
-            search_query = scholarly.search_author(author_name)
-            author = next(search_query).fill()
+            scholar_url = 'https://scholar.google.com/scholar?hl=ro&as_sdt=0%2C5&q=' + request.json['author_name']
 
-            author_response['author_name'] = author.name
-            author_response['affiliation'] = author.affiliation
-            author_response['cited_by'] = author.citedby
-            author_response['cites_per_year'] = author.cites_per_year
-            author_response['url_picture'] = author.url_picture
-            author_response['email'] = author.email
-            author_response['h_index'] = author.hindex
-            author_response['h5_index'] = author.hindex5y
-            author_response['i10_index'] = author.i10index
-            author_response['i10_index5y'] = author.i10index5y
-            author_response['interests'] = author.interests
-            author_response['coauthors'] = {}
-            for coauthor in author.coauthors:
-                author_response['coauthors'][coauthor.name] = coauthor.affiliation
+            scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
+            author_details = scholar_page.find("td", {"valign": "top"})
+            author_details_link = 'https://scholar.google.com' + author_details.findChildren("a")[0]['href']
+
+            author_details_page = BeautifulSoup(requests.get(author_details_link).content, 'html.parser')
+            author_name = author_details_page.find("div", {"id": "gsc_prf_in"}).get_text()
+            author_picture = 'https://scholar.google.com' + \
+                             author_details_page.find("div", {"id": "gsc_prf_pua"}).findChildren("img")[0]["src"]
+            author_affiliation = author_details_page.find("a", {"class": "gsc_prf_ila"}).get_text()
+            author_cites_per_year = []
+            author_cites_years = author_details_page.find_all("span", {"class": "gsc_g_t"})
+            author_cites_number_per_year = author_details_page.find_all("span", {"class": "gsc_g_al"})
+            for i in range(0, len(author_cites_years)):
+                author_cites_per_year.append(
+                    {author_cites_years[i].get_text(): author_cites_number_per_year[i].get_text()})
+            author_total_cites = author_details_page.find("td", {"class": "gsc_rsb_std"}).get_text()
+            author_hindex = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[2].get_text()
+            author_h5index = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[3].get_text()
+            author_h10index = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[4].get_text()
+            author_h10index_i5 = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[5].get_text()
+            author_interests = author_details_page.find_all("a", {"class": "gsc_prf_inta"})
+            author_interests_arr = []
+            for interests in author_interests:
+                author_interests_arr.append(interests.get_text())
+            author_coauthors = author_details_page.find_all("span", {"class": "gsc_rsb_a_desc"})
+            author_coauthors_arr = []
+            for coauthors in author_coauthors:
+                coauthor_name = coauthors.findChildren("a")[0].get_text()
+                coauthor_affiliation = coauthors.findChildren("span", {"class": "gsc_rsb_a_ext"})[0].get_text()
+                author_coauthors_arr.append({coauthor_name: coauthor_affiliation})
+
+            author_response['author_name'] = author_name
+            author_response['affiliation'] = author_affiliation
+            author_response['cited_by'] = author_total_cites
+            author_response['cites_per_year'] = author_cites_per_year
+            author_response['url_picture'] = author_picture
+            author_response['h_index'] = author_hindex
+            author_response['h5_index'] = author_h5index
+            author_response['i10_index'] = author_h10index
+            author_response['i10_index5y'] = author_h10index_i5
+            author_response['interests'] = author_interests_arr
+            author_response['coauthors'] = author_coauthors_arr
 
             sql = "INSERT into authors(name, author_details_scholar) VALUES(%s, %s)"
             values = (author_response['author_name'], json.dumps(author_response))
@@ -125,7 +126,6 @@ def get_docs_by_author():
                 author_response['cited_by'] = extra_details['cited_by']
                 author_response['cites_per_year'] = extra_details['cites_per_year']
                 author_response['url_picture'] = extra_details['url_picture']
-                author_response['email'] = extra_details['email']
                 author_response['h_index'] = extra_details['h_index']
                 author_response['h5_index'] = extra_details['h5_index']
                 author_response['i10_index'] = extra_details['i10_index']
@@ -133,10 +133,10 @@ def get_docs_by_author():
                 author_response['interests'] = extra_details['interests']
                 author_response['coauthors'] = extra_details['coauthors']
 
-    #except Exception as e:
-        #return jsonify({'error': str(e)})
-    #else:
-        #return jsonify(author_response)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    else:
+        return jsonify(author_response)
 
 
 @application.route('/get-publications-for-author', methods=['POST'])
