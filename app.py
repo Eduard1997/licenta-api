@@ -10,6 +10,8 @@ import json
 import xplore
 from dblp_pub import dblp
 from bs4 import BeautifulSoup, SoupStrainer
+from unidecode import unidecode
+from urllib import request as url_request
 
 # instantiate the app
 application = Flask(__name__)
@@ -25,6 +27,30 @@ mysql.init_app(application)
 
 # enable CORS
 cors = CORS(application)
+
+
+def replace_romanian_letters(word):
+    if u"ă" in word:
+        word = word.replace(u"ă", unidecode(u"a"))
+    if u"Ă" in word:
+        word = word.replace(u"Ă", unidecode(u"A"))
+    if u"â" in word:
+        word = word.replace(u"â", unidecode(u"a"))
+    if u"Â" in word:
+        word = word.replace(u"Â", unidecode(u"A"))
+    if u"î" in word:
+        word = word.replace(u"î", unidecode(u"i"))
+    if u"Î" in word:
+        word = word.replace(u"Î", unidecode(u"I"))
+    if u"ş" in word:
+        word = word.replace(u"ş", unidecode(u"s"))
+    if u"Ş" in word:
+        word = word.replace(u"Ş", unidecode(u"S"))
+    if u"ţ" in word:
+        word = word.replace(u"ţ", unidecode(u"t"))
+    if u"Ţ" in word:
+        word = word.replace(u"Ţ", unidecode(u"T"))
+    return word
 
 
 @application.route('/', methods=['GET'])
@@ -45,42 +71,70 @@ def hello():
 
 @application.route('/get-docs-by-author', methods=['POST'])
 def get_docs_by_author():
-    try:
+    # try:
 
-        conn = mysql.connect()
-        cursor = conn.cursor()
+    conn = mysql.connect()
+    cursor = conn.cursor()
 
-        author_response = {}
-        author_name = request.json['author_name']
+    author_response = {}
+    author_name = request.json['author_name']
 
-        search_existing_author_query = 'SELECT * from authors where name LIKE %s'
-        search_existing_author_values = author_name
-        cursor.execute(search_existing_author_query, '%' + search_existing_author_values + '%')
-        values = cursor.fetchall()
+    search_existing_author_query = 'SELECT * from authors where name LIKE %s'
+    search_existing_author_values = author_name
+    cursor.execute(search_existing_author_query, '%' + search_existing_author_values + '%')
+    values = cursor.fetchall()
 
-        # query = xplore.xploreapi.XPLORE('khvns7n2jca9e6fetnmrepn9')
-        # query.abstractText(author_name)
-        # data = query.callAPI()
-        # print(data)
+    # query = xplore.xploreapi.XPLORE('khvns7n2jca9e6fetnmrepn9')
+    # query.abstractText(author_name)
+    # data = query.callAPI()
+    # print(data)
 
-        if len(values) == 0:
-            scholar_url = 'https://scholar.google.com/scholar?hl=ro&as_sdt=0%2C5&q=' + request.json['author_name']
-
-            scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
-            author_details = scholar_page.find("td", {"valign": "top"})
+    if len(values) == 0:
+        scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['author_name']
+        scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
+        author_details = scholar_page.find("td", {"valign": "top"})
+        if author_details is not None:
             author_details_link = 'https://scholar.google.com' + author_details.findChildren("a")[0]['href']
-
             author_details_page = BeautifulSoup(requests.get(author_details_link).content, 'html.parser')
             author_name = author_details_page.find("div", {"id": "gsc_prf_in"}).get_text()
-            author_picture = 'https://scholar.google.com' + \
-                             author_details_page.find("div", {"id": "gsc_prf_pua"}).findChildren("img")[0]["src"]
-            author_affiliation = author_details_page.find("a", {"class": "gsc_prf_ila"}).get_text()
+            author_picture = author_details_page.find("img", {"id": "gsc_prf_pup-img"})["src"]
+            if author_picture[0] == '/':
+                author_picture_url = 'https://scholar.google.com' + author_picture
+            else:
+                author_picture_url = author_picture
+            author_affiliation_div = author_details_page.find("div", {"class": "gsc_prf_il"})
+            author_affiliation_link = author_affiliation_div.findChildren("a")
+            if len(author_affiliation_link):
+                author_affiliation = author_affiliation_link[0].get_text()
+            else:
+                author_affiliation = author_affiliation_div.get_text()
             author_cites_per_year = []
             author_cites_years = author_details_page.find_all("span", {"class": "gsc_g_t"})
-            author_cites_number_per_year = author_details_page.find_all("span", {"class": "gsc_g_al"})
-            for i in range(0, len(author_cites_years)):
-                author_cites_per_year.append(
-                    {author_cites_years[i].get_text(): author_cites_number_per_year[i].get_text()})
+            author_cites_years_links = author_details_page.find_all("a", {"class": "gsc_g_a"})
+            index_links_citations = 0
+            links_index = 0
+            step = False
+            links_index = 0
+            if len(author_cites_years) != len(author_cites_years_links):
+                for i in range(0, len(author_cites_years)):
+                    if index_links_citations == 0:
+                        author_cites_per_year.append(
+                            {author_cites_years[i].get_text(): author_cites_years_links[links_index].get_text()})
+                        index_links_citations = int(author_cites_years_links[links_index]["style"].split('z-index:')[1])
+                        links_index = links_index + 1
+                    elif index_links_citations != 0 and int(
+                            author_cites_years_links[links_index]["style"].split('z-index:')[
+                                1]) + 1 != index_links_citations and step == False:
+                        author_cites_per_year.append({author_cites_years[i].get_text(): 0})
+                        step = True
+                    elif step == True:
+                        author_cites_per_year.append(
+                            {author_cites_years[i].get_text(): author_cites_years_links[links_index].get_text()})
+                        links_index = links_index + 1
+            else:
+                for i in range(0, len(author_cites_years)):
+                    author_cites_per_year.append({author_cites_years[i].get_text(): author_cites_years_links[i].get_text()})
+
             author_total_cites = author_details_page.find("td", {"class": "gsc_rsb_std"}).get_text()
             author_hindex = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[2].get_text()
             author_h5index = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[3].get_text()
@@ -97,46 +151,115 @@ def get_docs_by_author():
                 coauthor_affiliation = coauthors.findChildren("span", {"class": "gsc_rsb_a_ext"})[0].get_text()
                 author_coauthors_arr.append({coauthor_name: coauthor_affiliation})
 
+            if len(author_coauthors_arr) == 0:
+                coauthors_reloaded = []
+                author_first_name_request = request.json['author_name'].split(' ')[0]
+                author_last_name_request = request.json['author_name'].split(' ')[1]
+                author_first_name_initial_request = author_first_name_request[0]
+                author_last_name_initial_request = author_last_name_request[0]
+
+                author_first_name = author_name.split(' ')[0]
+                author_last_name = author_name.split(' ')[1]
+                author_first_name_initial = author_first_name[0]
+                author_last_name_initial = author_last_name[0]
+                coauthors_container = author_details_page.find_all("td", {"class": "gsc_a_t"})
+                for couauthor in coauthors_container:
+                    coauthors_arr = couauthor.find("div").get_text().split(',')
+                    for item in coauthors_arr:
+                        if author_first_name_initial_request + ' ' + author_first_name in item:
+                            coauthors_arr.remove(item)
+                        elif author_first_name_initial_request + ' ' + author_last_name in item:
+                            coauthors_arr.remove(item)
+                        elif author_last_name_initial_request + ' ' + author_first_name in item:
+                            coauthors_arr.remove(item)
+                        elif author_last_name_initial_request + ' ' + author_last_name in item:
+                            coauthors_arr.remove(item)
+                        elif author_first_name_initial + ' ' + author_first_name_request in item:
+                            coauthors_arr.remove(item)
+                        elif author_first_name_initial + ' ' + author_last_name_request in item:
+                            coauthors_arr.remove(item)
+                        elif author_last_name_initial + ' ' + author_first_name_request in item:
+                            coauthors_arr.remove(item)
+                        elif author_last_name_initial + ' ' + author_last_name_request in item:
+                            coauthors_arr.remove(item)
+                        elif "..." in item:
+                            coauthors_arr.remove(item)
+                        elif author_first_name == "Pistol" and "IC" in item:
+                            coauthors_arr.remove(item)
+                    coauthors_reloaded.append(coauthors_arr)
+                final_coauthor_list = []
+                for author in coauthors_reloaded:
+                    for author2 in author:
+                        final_coauthor_list.append(replace_romanian_letters(author2))
+                final_coauthor_list = list(set(final_coauthor_list))
+                # print(final_coauthor_list)
+                for item in final_coauthor_list:
+                    author_coauthors_arr.append({item: ""})
+
             author_response['author_name'] = author_name
             author_response['affiliation'] = author_affiliation
             author_response['cited_by'] = author_total_cites
             author_response['cites_per_year'] = author_cites_per_year
-            author_response['url_picture'] = author_picture
+            author_response['url_picture'] = author_picture_url
             author_response['h_index'] = author_hindex
             author_response['h5_index'] = author_h5index
             author_response['i10_index'] = author_h10index
             author_response['i10_index5y'] = author_h10index_i5
             author_response['interests'] = author_interests_arr
             author_response['coauthors'] = author_coauthors_arr
-
-            sql = "INSERT into authors(name, author_details_scholar) VALUES(%s, %s)"
-            values = (author_response['author_name'], json.dumps(author_response))
-            cursor.execute(sql, values)
-            conn.commit()
         else:
-            result = []
-            columns = [desc[0] for desc in cursor.description]
-            for row in values:
-                row = dict(zip(columns, row))
-                result.append(row)
-            for details in result:
-                author_response['author_name'] = details['name']
-                extra_details = json.loads(details['author_details_scholar'])
-                author_response['affiliation'] = extra_details['affiliation']
-                author_response['cited_by'] = extra_details['cited_by']
-                author_response['cites_per_year'] = extra_details['cites_per_year']
-                author_response['url_picture'] = extra_details['url_picture']
-                author_response['h_index'] = extra_details['h_index']
-                author_response['h5_index'] = extra_details['h5_index']
-                author_response['i10_index'] = extra_details['i10_index']
-                author_response['i10_index5y'] = extra_details['i10_index5y']
-                author_response['interests'] = extra_details['interests']
-                author_response['coauthors'] = extra_details['coauthors']
-
-    except Exception as e:
-        return jsonify({'error': str(e)})
+            semantic_initial_url = 'https://www.semanticscholar.org/api/1/search'
+            semantic_initial_payload = {
+                "authors": [],
+                "coAuthors": [],
+                "externalContentTypes": [],
+                "page": 1,
+                "pageSize": 10,
+                "performTitleMatch": True,
+                "publicationTypes": [],
+                "queryString": author_name,
+                "requireViewablePdf": False,
+                "sort": "relevance",
+                "useRankerService": True,
+                "venues": [],
+                "yearFilter": None
+            }
+            headers = {"Content-Type": "application/json"}
+            semantic_page_data = json.loads(requests.post(semantic_initial_url, data=json.dumps(semantic_initial_payload), headers=headers).content)
+            semantic_author_id = semantic_page_data["results"][0]["authors"][0][0]['ids'][0]
+            semantic_author_slug = semantic_page_data["results"][0]["authors"][0][0]['slug']
+            semantic_author_details_link = "https://www.semanticscholar.org/api/1/author/" + semantic_author_id + "?slug=" + semantic_author_slug + "&requireSlug=true&isClaimEnabled=true"
+            semantic_author_data = json.loads(requests.get(semantic_author_details_link).content)
+            print(semantic_author_data)
+            return "da"
+        # sql = "INSERT into authors(name, author_details_scholar) VALUES(%s, %s)"
+        # values = (author_response['author_name'], json.dumps(author_response))
+        # cursor.execute(sql, values)
+        # conn.commit()
     else:
-        return jsonify(author_response)
+        result = []
+        columns = [desc[0] for desc in cursor.description]
+        for row in values:
+            row = dict(zip(columns, row))
+            result.append(row)
+        for details in result:
+            author_response['author_name'] = details['name']
+            extra_details = json.loads(details['author_details_scholar'])
+            author_response['affiliation'] = extra_details['affiliation']
+            author_response['cited_by'] = extra_details['cited_by']
+            author_response['cites_per_year'] = extra_details['cites_per_year']
+            author_response['url_picture'] = extra_details['url_picture']
+            author_response['h_index'] = extra_details['h_index']
+            author_response['h5_index'] = extra_details['h5_index']
+            author_response['i10_index'] = extra_details['i10_index']
+            author_response['i10_index5y'] = extra_details['i10_index5y']
+            author_response['interests'] = extra_details['interests']
+            author_response['coauthors'] = extra_details['coauthors']
+
+    # except Exception as e:
+    # return jsonify({'error': str(e)})
+    # else:
+    return jsonify(author_response)
 
 
 @application.route('/get-publications-for-author', methods=['POST'])
@@ -213,16 +336,19 @@ def get_publications_for_author():
                         'dblp_venue'] = item['info']['venue']
                 else:
                     publication_response['publications'][item['info']['title'].lower().title().replace(".", "")] = {}
-                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['title'] = \
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'title'] = \
                         item['info']['title'].lower().title().replace(".", "")
-                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['url'] = \
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'url'] = \
                         item['info']['url']
                     publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
                         'dblp_type'] = item['info']['type']
                     if 'venue' in item['info']:
                         publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
                             'dblp_venue'] = item['info']['venue']
-                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['year'] = \
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'year'] = \
                         item['info']['year']
 
             sql = "UPDATE authors SET author_publications_scholar = %s WHERE name LIKE %s"
