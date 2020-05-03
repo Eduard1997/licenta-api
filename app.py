@@ -297,7 +297,7 @@ def get_publications_for_author():
                 publication_response['publications'][title.lower().title().replace(".", "")]['title'] = title.lower().title().replace(".", "")
                 publication_response['publications'][title.lower().title().replace(".", "")]['url'] = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
                 publication_response['publications'][title.lower().title().replace(".", "")]['cited_by'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2].get_text().split(" ")[2]
-                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link_scholar'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2]["href"]
                 if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
                     publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
                 else:
@@ -312,15 +312,15 @@ def get_publications_for_author():
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
                         'scopus_link'] = item['link'][2]['@href']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'aggregation_type'] = item['prism:aggregationType']
+                        'scopus_aggregation_type'] = item['prism:aggregationType']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'subtype_description'] = item['subtypeDescription']
+                        'scopus_subtype_description'] = item['subtypeDescription']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
                         'publication_name'] = item['prism:publicationName']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'cited_by'] = item['citedby-count']
+                        'cited_by_scopus'] = item['citedby-count']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'cited_by_link'] = item['link'][3]['@href']
+                        'cited_by_link_scopus'] = item['link'][3]['@href']
                 else:
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")] = {}
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['title'] = \
@@ -328,17 +328,17 @@ def get_publications_for_author():
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['url'] = \
                         item['link'][2]['@href']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'aggregation_type'] = item['prism:aggregationType']
+                        'aggregation_type_scopus'] = item['prism:aggregationType']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'subtype_description'] = item['subtypeDescription']
+                        'subtype_description_scopus'] = item['subtypeDescription']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
                         'publication_name'] = item['prism:publicationName']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'cited_by'] = item['citedby-count']
+                        'cited_by_scopus'] = item['citedby-count']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'cited_by_link'] = item['link'][3]['@href']
+                        'cited_by_link_scopus'] = item['link'][3]['@href']
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
-                        'eprint'] = '-'
+                        'eprint_scopus'] = '-'
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['year'] = \
                         item['prism:coverDate'].split('-')[0]
 
