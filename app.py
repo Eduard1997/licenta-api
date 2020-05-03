@@ -93,6 +93,7 @@ def get_docs_by_author():
         scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['author_name']
         scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
         author_details = scholar_page.find("td", {"valign": "top"})
+        # author_details = None
         if author_details is not None:
             author_details_link = 'https://scholar.google.com' + author_details.findChildren("a")[0]['href']
             author_details_page = BeautifulSoup(requests.get(author_details_link).content, 'html.parser')
@@ -192,7 +193,6 @@ def get_docs_by_author():
                     for author2 in author:
                         final_coauthor_list.append(replace_romanian_letters(author2))
                 final_coauthor_list = list(set(final_coauthor_list))
-                # print(final_coauthor_list)
                 for item in final_coauthor_list:
                     author_coauthors_arr.append({item: ""})
 
@@ -226,16 +226,26 @@ def get_docs_by_author():
             }
             headers = {"Content-Type": "application/json"}
             semantic_page_data = json.loads(requests.post(semantic_initial_url, data=json.dumps(semantic_initial_payload), headers=headers).content)
+            semantic_author_extra_data = semantic_page_data["stats"]
             semantic_author_id = semantic_page_data["results"][0]["authors"][0][0]['ids'][0]
             semantic_author_slug = semantic_page_data["results"][0]["authors"][0][0]['slug']
             semantic_author_details_link = "https://www.semanticscholar.org/api/1/author/" + semantic_author_id + "?slug=" + semantic_author_slug + "&requireSlug=true&isClaimEnabled=true"
             semantic_author_data = json.loads(requests.get(semantic_author_details_link).content)
-            print(semantic_author_data)
-            return "da"
-        # sql = "INSERT into authors(name, author_details_scholar) VALUES(%s, %s)"
-        # values = (author_response['author_name'], json.dumps(author_response))
-        # cursor.execute(sql, values)
-        # conn.commit()
+            author_response['author_name'] = semantic_author_data['author']['name']
+            author_response['affiliation'] = semantic_author_data['author']['affiliations']
+            author_response['cited_by'] = semantic_author_data['author']['statistics']['totalCitationCount']
+            author_response['cites_per_year'] = [{value["startKey"]: value["count"]} for value in semantic_author_data['author']['statistics']['citedByYearHistogram']]
+            author_response['url_picture'] = ""
+            author_response['h_index'] = semantic_author_data['author']['statistics']['hIndex']
+            author_response['h5_index'] = ""
+            author_response['i10_index'] = ""
+            author_response['i10_index5y'] = ""
+            author_response['interests'] = ""
+            author_response['coauthors'] = semantic_author_extra_data["coAuthors"]
+        sql = "INSERT into authors(name, author_details_scholar) VALUES(%s, %s)"
+        values = (author_response['author_name'], json.dumps(author_response))
+        cursor.execute(sql, values)
+        conn.commit()
     else:
         result = []
         columns = [desc[0] for desc in cursor.description]
@@ -264,7 +274,7 @@ def get_docs_by_author():
 
 @application.route('/get-publications-for-author', methods=['POST'])
 def get_publications_for_author():
-    try:
+    #try:
         conn = mysql.connect()
         cursor = conn.cursor()
 
@@ -278,13 +288,21 @@ def get_publications_for_author():
         values = cursor.fetchall()
 
         if len(values) == 0:
-            search_query = scholarly.search_author(author_name)
-            author = next(search_query).fill()
-            for pub in author.publications:
-                pub.fill()
-                publication_response['publications'][pub.bib['title'].lower().title().replace(".", "")] = pub.bib
-                publication_response['publications'][pub.bib['title'].lower().title().replace(".", "")][
-                    'url'] = pub.bib.get('url')
+            scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['authorName']
+            scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
+            author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div", {"class": "gs_scl"})
+            for pub in author_publications:
+                title = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0].get_text()
+                publication_response['publications'][title.lower().title().replace(".", "")] = {}
+                publication_response['publications'][title.lower().title().replace(".", "")]['title'] = title.lower().title().replace(".", "")
+                publication_response['publications'][title.lower().title().replace(".", "")]['url'] = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
+                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2].get_text().split(" ")[2]
+                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
+                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
+                else:
+                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
+                publication_response['publications'][title.lower().title().replace(".", "")]['year'] = pub.findChildren("div", {"class": "gs_a"})[0].get_text().split("-")[1].split(',')[1].strip()
 
             scopus_author_data = requests.get(
                 'http://api.elsevier.com/content/search/scopus?query=' + author_name + '&apiKey=acf90e6867d5a1b99ca5ba2f91935664').content
@@ -372,9 +390,9 @@ def get_publications_for_author():
                 publication_response['publications'][key] = value
                 publication_response['publications'][key]['url'] = value['url']
 
-    except Exception as e:
-        return jsonify({'error': str(e)})
-    else:
+    #except Exception as e:
+        #return jsonify({'error': str(e)})
+    #else:
         return jsonify(publication_response)
 
 
