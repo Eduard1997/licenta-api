@@ -11,7 +11,8 @@ import xplore
 from dblp_pub import dblp
 from bs4 import BeautifulSoup, SoupStrainer
 from unidecode import unidecode
-from urllib import request as url_request
+import re
+
 
 # instantiate the app
 application = Flask(__name__)
@@ -286,12 +287,13 @@ def get_publications_for_author():
         search_existing_author_values = author_name
         cursor.execute(search_existing_author_query, '%' + search_existing_author_values + '%')
         values = cursor.fetchall()
-
+        err = ''
         if len(values) == 0:
             scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['authorName']
             scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
             author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div", {"class": "gs_scl"})
             for pub in author_publications:
+                err = pub
                 title = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0].get_text()
                 publication_response['publications'][title.lower().title().replace(".", "")] = {}
                 publication_response['publications'][title.lower().title().replace(".", "")]['title'] = title.lower().title().replace(".", "")
@@ -302,7 +304,8 @@ def get_publications_for_author():
                     publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
                 else:
                     publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
-                publication_response['publications'][title.lower().title().replace(".", "")]['year'] = pub.findChildren("div", {"class": "gs_a"})[0].get_text().split("-")[1].split(',')[1].strip()
+                publication_response['publications'][title.lower().title().replace(".", "")]['year'] = re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[len(re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text()))-1]
+
 
             scopus_author_data = requests.get(
                 'http://api.elsevier.com/content/search/scopus?query=' + author_name + '&apiKey=acf90e6867d5a1b99ca5ba2f91935664').content
@@ -391,7 +394,7 @@ def get_publications_for_author():
                 publication_response['publications'][key]['url'] = value['url']
 
     #except Exception as e:
-        #return jsonify({'error': str(e)})
+        #return jsonify({'error': str(err)})
     #else:
         return jsonify(publication_response)
 
