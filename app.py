@@ -296,8 +296,8 @@ def get_publications_for_author():
                 publication_response['publications'][title.lower().title().replace(".", "")] = {}
                 publication_response['publications'][title.lower().title().replace(".", "")]['title'] = title.lower().title().replace(".", "")
                 publication_response['publications'][title.lower().title().replace(".", "")]['url'] = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
-                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2].get_text().split(" ")[2]
-                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link_scholar'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2].get_text().split(" ")[2]
+                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link_scholar'] = 'https://scholar.google.com' + pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2]["href"]
                 if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
                     publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
                 else:
