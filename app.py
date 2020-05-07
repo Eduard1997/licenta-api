@@ -294,7 +294,8 @@ def get_publications_for_author():
     if len(values) == 0:
         scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['authorName']
         scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
-        author_publications = scholar_page.find("div", {"id": "gs_res_ccl"})
+        #author_publications = scholar_page.find("div", {"id": "gs_res_ccl"})
+        author_publications = None
         if author_publications is not None:
             author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",{"class": "gs_scl"})
             for pub in author_publications:
@@ -341,7 +342,6 @@ def get_publications_for_author():
                     'cited_by_scopus'] = item['citedby-count']
                 publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
                     'cited_by_link_scopus'] = item['link'][3]['@href']
-                publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['citations_papers'] = get_alternative_citations(author_name, item['dc:title'].lower().title().replace(".", ""))
 
             else:
                 publication_response['publications'][item['dc:title'].lower().title().replace(".", "")] = {}
@@ -363,7 +363,6 @@ def get_publications_for_author():
                     'eprint_scopus'] = '-'
                 publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['year'] = \
                     item['prism:coverDate'].split('-')[0]
-                publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['citations_papers'] = get_alternative_citations(author_name,item['dc:title'].lower().title().replace(".", ""))
 
         authors_dblp = requests.get('http://dblp.org/search/publ/api?q=' + author_name + '&format=json').content
         authors_dblp_decoded = json.loads(authors_dblp)
@@ -418,6 +417,81 @@ def get_publications_for_author():
     # else:
     return jsonify(publication_response)
 
+@application.route('/get-citations-for-publication', methods=['POST'])
+def get_citations_for_publications():
+    author_name = request.json['authorName']
+    publication_name = request.json['publicationName']
+    article_semantic_link = ''
+    response =  ''
+    semantic_initial_url = 'https://www.semanticscholar.org/api/1/search'
+    semantic_initial_payload = {
+        "authors": [],
+        "coAuthors": [],
+        "externalContentTypes": [],
+        "page": 1,
+        "pageSize": 10,
+        "performTitleMatch": True,
+        "publicationTypes": [],
+        "queryString": author_name,
+        "requireViewablePdf": False,
+        "sort": "relevance",
+        "useRankerService": True,
+        "venues": [],
+        "yearFilter": None
+    }
+    headers = {"Content-Type": "application/json"}
+    semantic_page_data = json.loads(
+        requests.post(semantic_initial_url, data=json.dumps(semantic_initial_payload), headers=headers).content)
+    semantic_author_id = semantic_page_data["results"][0]["authors"][0][0]['ids'][0]
+    semantic_author_slug = semantic_page_data["results"][0]["authors"][0][0]['slug']
+    semantic_author_details_url = "https://www.semanticscholar.org/author/" + semantic_author_slug + "/" + semantic_author_id
+    semantic_author_page_data = BeautifulSoup(requests.get(semantic_author_details_url).content, 'html.parser')
+    pages = semantic_author_page_data.find("ul", {"class": "pagination"}).findChildren("a")
+    pages_arr = []
+    for page in pages:
+        if page.get_text().isdigit():
+            pages_arr.append(int(page.get_text()))
+
+    counter = 0
+    while counter < len(pages_arr)-1:
+        semantic_author_details_url = "https://www.semanticscholar.org/author/" + semantic_author_slug + "/" + semantic_author_id + "?page=" + str(pages_arr[counter])
+        semantic_publications_data = BeautifulSoup(requests.get(semantic_author_details_url).content, 'html.parser')
+        publications_containers = semantic_publications_data.find_all("article", {"class": "search-result"})
+        for article in publications_containers:
+            if article.find("a").find("span").find("span").get_text() == publication_name:
+                article_semantic_link = "https://www.semanticscholar.org" + article.find("a")['href']
+                counter = len(pages_arr)-1
+                break
+        if len(article_semantic_link) == 0:
+            counter = counter + 1
+    if len(article_semantic_link) == 0:
+        return jsonify({"message": "Article not found on Semantic Scholar"})
+    else:
+        citations_pages = []
+        citations_counter = 0
+        citation_response = {}
+        semantic_publications_data = BeautifulSoup(requests.get(article_semantic_link).content, 'html.parser')
+        cites_number = int(semantic_publications_data.find("span", {"class": "scorecard_stat__headline__dark"}).get_text().split(" ")[0])
+        if cites_number > 0:
+            citations_pages_container = semantic_publications_data.find("div", {"class": "citation-pagination"}).findChildren("a")
+            for page in citations_pages_container:
+                if page.get_text().isdigit():
+                    citations_pages.append(int(page.get_text()))
+            while citations_counter < len(citations_pages)-1:
+                paper_citation = semantic_publications_data.findChildren("div", {"class": "paper-citation"})
+                for citation in paper_citation:
+                    title = citation.find("div", {"class": "citation__body"}).find("a").find("span").find("span").get_text()
+                    citation_response[title] = {}
+                    citation_response[title]['title'] = title
+                    citation_response[title]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
+                citations_counter = citations_counter + 1
+
+            return jsonify(citation_response)
+        else:
+            return jsonify({"message": "This article doesn't have citations on Semantic Scholar"})
+
+
+
 
 def publication_cites(scholar_url):
     scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
@@ -448,45 +522,6 @@ def publication_cites(scholar_url):
                 len(re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())) - 1]
 
     return publication_response
-
-
-def get_alternative_citations(author_name, publication_name):
-    paper_id = ''
-    paper_slug = ''
-    gasit = 0
-
-    semantic_initial_url = 'https://www.semanticscholar.org/api/1/search'
-    semantic_initial_payload = {
-        "authors": [],
-        "coAuthors": [],
-        "externalContentTypes": [],
-        "page": 1,
-        "pageSize": 10,
-        "performTitleMatch": True,
-        "publicationTypes": [],
-        "queryString": author_name,
-        "requireViewablePdf": False,
-        "sort": "relevance",
-        "useRankerService": True,
-        "venues": [],
-        "yearFilter": None
-    }
-    headers = {"Content-Type": "application/json"}
-    # semantic_page_data = json.loads(
-    #     requests.post(semantic_initial_url, data=json.dumps(semantic_initial_payload), headers=headers).content)
-    # semantic_author_extra_data = semantic_page_data["stats"]
-    # semantic_author_id = semantic_page_data["results"][0]["authors"][0][0]['ids'][0]
-    # semantic_author_slug = semantic_page_data["results"][0]["authors"][0][0]['slug']
-   #TODO: ajax pentru luat citarile la fiecare de pe: "https://www.semanticscholar.org/paper/Automated-Verification-of-Equivalence-Properties-of-Chadha-Ciobaca/84f0e8bfc77388ef3d08813a40a3c1381f6215eb"
-    http = urllib3.PoolManager(ca_certs=certifi.where())
-    encoded_data = json.dumps(semantic_initial_payload).encode('utf-8')
-    resp = http.request(
-        'POST',
-        'https://www.semanticscholar.org/api/1/author/2410123?slug=Stefan-Ciobaca&requireSlug=true&isClaimEnabled=true',
-        body=encoded_data,
-        headers={'Content-Type': 'application/json'})
-    data = len(json.loads(resp.data.decode('utf-8'))['author']['papers']['results'])
-    print(data)
 
 
 @application.after_request
