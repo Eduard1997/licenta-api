@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 from flaskext.mysql import MySQL
 from pybliometrics.scopus import AuthorSearch
@@ -14,6 +14,7 @@ from unidecode import unidecode
 import re
 import urllib3
 import certifi
+import os
 
 # instantiate the app
 application = Flask(__name__)
@@ -29,7 +30,7 @@ mysql.init_app(application)
 
 # enable CORS
 cors = CORS(application)
-
+UPLOAD_DIRECTORY = "D:\Work\licenta\server-git\licenta-api"
 
 def replace_romanian_letters(word):
     if u"ă" in word:
@@ -294,8 +295,8 @@ def get_publications_for_author():
     if len(values) == 0:
         scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['authorName']
         scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
-        #author_publications = scholar_page.find("div", {"id": "gs_res_ccl"})
-        author_publications = None
+        author_publications = scholar_page.find("div", {"id": "gs_res_ccl"})
+        #author_publications = None
         if author_publications is not None:
             author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",{"class": "gs_scl"})
             for pub in author_publications:
@@ -491,6 +492,114 @@ def get_citations_for_publications():
             return jsonify({"message": "This article doesn't have citations on Semantic Scholar"})
 
 
+@application.route('/get-searched-publication', methods=['POST'])
+def get_searched_publications_for_author():
+    # try:
+    conn = mysql.connect()
+    cursor = conn.cursor()
+
+    publication_response = {}
+    publication_response['publications'] = {}
+    author_name = request.json['authorName']
+    publication_name = request.json['publicationName'].lower().title().replace(".", "")
+
+    scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['authorName']
+    scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
+    author_publications = scholar_page.find("div", {"id": "gs_res_ccl"})
+    if author_publications is not None:
+        pages = scholar_page.findChildren("div", {"id": "gs_res_ccl_bot"})#[0].findChildren("div", {"role": "navigation"})[0].findChildren("table")[0].findChildren("a")
+    #author_publications = None
+    if author_publications is not None:
+        for page in pages:
+            if page.get_text() != 'Next':
+                scholar_page = BeautifulSoup(requests.get('https://scholar.google.com' + page['href']).content, 'html.parser')
+                author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",{"class": "gs_scl"})
+                for pub in author_publications:
+                    title = pub.findChildren("h3", {"class": "gs_rt"})[0]
+                    if len(title.findChildren("a")):
+                        title = title.findChildren("a")[0].get_text()
+                        if title.lower().title().replace(".", "") == publication_name:
+                            publication_response['publications'][title.lower().title().replace(".", "")] = {}
+                            publication_response['publications'][title.lower().title().replace(".", "")]['title'] = title.lower().title().replace(".", "")
+                            publication_response['publications'][title.lower().title().replace(".", "")]['url'] = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
+                            publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = \
+                            pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2].get_text().split(" ")[2]
+                            publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link_scholar'] = 'https://scholar.google.com' + pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                            if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
+                                publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
+                            else:
+                                publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
+                            publication_response['publications'][title.lower().title().replace(".", "")]['year'] = re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[len(re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())) - 1]
+    else:
+        print('scholar publications null')
+
+    if len(publication_response['publications']) == 0:
+        scopus_author_data = requests.get(
+            'http://api.elsevier.com/content/search/scopus?query=' + publication_name + '&apiKey=acf90e6867d5a1b99ca5ba2f91935664').content
+        decode_scopus_author_data = json.loads(scopus_author_data)
+        if 'error' not in decode_scopus_author_data['search-results']['entry'][0]:
+            for item in decode_scopus_author_data['search-results']['entry']:
+                if item['dc:title'].lower().title().replace(".", "") == publication_name:
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")] = {}
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['title'] = \
+                        item['dc:title'].lower().title().replace(".", "")
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['url'] = \
+                        item['link'][2]['@href']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'aggregation_type_scopus'] = item['prism:aggregationType']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'subtype_description_scopus'] = item['subtypeDescription']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'publication_name'] = item['prism:publicationName']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'cited_by_scopus'] = item['citedby-count']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'cited_by_link_scopus'] = item['link'][3]['@href']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'eprint_scopus'] = '-'
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['year'] = \
+                        item['prism:coverDate'].split('-')[0]
+
+    if len(publication_response['publications']) == 0:
+        authors_dblp = requests.get('http://dblp.org/search/publ/api?q=' + author_name + '&format=json').content
+        authors_dblp_decoded = json.loads(authors_dblp)
+        if authors_dblp_decoded['result']['hits']['hit'] is not None:
+            for item in authors_dblp_decoded['result']['hits']['hit']:
+                if item['info']['title'].lower().title().replace(".", "") == publication_name:
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")] = {}
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'title'] = \
+                        item['info']['title'].lower().title().replace(".", "")
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'url'] = \
+                        item['info']['url']
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'dblp_type'] = item['info']['type']
+                    if 'venue' in item['info']:
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                            'dblp_venue'] = item['info']['venue']
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'year'] = \
+                        item['info']['year']
+
+
+
+    # except Exception as e:
+    # return jsonify({'error': str(err)})
+    # else:
+    return jsonify(publication_response)
+
+@application.route('/export-data', methods=['POST'])
+def export_file():
+    export_data = {}
+    export_data['top'] = json.dumps(request.json['topData'])
+    export_data['pub'] = json.dumps(request.json['authorPublications'])
+    file = open('export.txt', 'w')
+    file.write('test')
+    file.close()
+    uploads = os.path.join(application.root_path, UPLOAD_DIRECTORY)
+    print(uploads)
+    return 'da'
 
 
 def publication_cites(scholar_url):
@@ -524,14 +633,16 @@ def publication_cites(scholar_url):
     return publication_response
 
 
-@application.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8080')
-    response.headers.add('Access-Control-Allow-Credentials', 'false')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Headers',
-                         'Access-Control-Allow-Origin, Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers')
-    return response
+
+
+# @application.after_request
+# def after_request(response):
+#     response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8080')
+#     response.headers.add('Access-Control-Allow-Credentials', 'false')
+#     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+#     response.headers.add('Access-Control-Allow-Headers',
+#                          'Access-Control-Allow-Origin, Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers')
+#     return response
 
 
 if __name__ == '__main__':
