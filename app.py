@@ -479,7 +479,7 @@ def get_citations_for_publications(author_name, publication_name):
         if len(article_semantic_link) == 0:
             counter = counter + 1
     if len(article_semantic_link) == 0:
-        return jsonify({"message": "Article not found on Semantic Scholar"})
+        return {"message": "Article not found on Semantic Scholar"}
     else:
         citations_pages = []
         citations_counter = 0
@@ -502,6 +502,13 @@ def get_citations_for_publications(author_name, publication_name):
                         citation_response[title] = {}
                         citation_response[title]['title'] = title
                         citation_response[title]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
+                        citation_response[title]['year'] = citation.find("div", {"class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {"data-selenium-selector": "paper-year"}).get_text()
+                        citation_response[title]['show_semantic'] = True
+                        if len(citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})):
+                            citation_response[title]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
+                        else:
+                            citation_response[title]['domains'] = '-'
+                        citation_response[title]['authors'] = citation.findChildren("span", {"class": "author-list"})[0].get_text()
                     citations_counter = citations_counter + 1
             else:
                 paper_citation = semantic_publications_data.findChildren("div", {"class": "paper-citation"})
@@ -512,7 +519,10 @@ def get_citations_for_publications(author_name, publication_name):
                     citation_response[title] = {}
                     citation_response[title]['title'] = title
                     citation_response[title]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
-
+                    citation_response[title]['year'] = citation.find("div", {"class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {"data-selenium-selector": "paper-year"}).get_text()
+                    citation_response[title]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
+                    citation_response[title]['authors'] = citation_response.findChildren("span", {"class": "author-list"})[0].get_text()
+                    citation_response[title]['show_semantic'] = True
             return citation_response
         else:
             return {"message": "This article doesn't have citations on Semantic Scholar"}
@@ -633,6 +643,8 @@ def publication_cites():
     author_page = ''
     publication_response = ''
     scholar_page_bytes = ''
+    publication_response = {}
+    publication_response['publications'] = {}
     author_name = request.json['authorName']
     publication_name = request.json['publicationName']
     scholar_url = request.json['scholarURL']
@@ -714,11 +726,11 @@ def publication_cites():
                 else:
                     publication_response['publications'][title.lower().title().replace(".", "")]['year'] = ''
     if len(publication_response['publications']):
-        return jsonify({'citations' : publication_response})
+        return jsonify({'scholar_citations': publication_response})
     else:
         alternative_pub_response = get_citations_for_publications(author_name, publication_name)
         if len(alternative_pub_response) > 0:
-            return jsonify({'citations': alternative_pub_response})
+            return jsonify({'semantic_citations': alternative_pub_response})
         else:
             return jsonify({'message': 'no citations found'})
 
