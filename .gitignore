@@ -11,3 +11,4 @@
 .idea/workspace.xml
 .idea/flask_server.iml
 .idea/misc.xml
+*.iml
