@@ -499,16 +499,16 @@ def get_citations_for_publications(author_name, publication_name):
                     for citation in paper_citation:
                         title = citation.find("div", {"class": "citation__body"}).find("a").find("span").find("span").get_text()
                         title_cpy = title
-                        citation_response[title] = {}
-                        citation_response[title]['title'] = title
-                        citation_response[title]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
-                        citation_response[title]['year'] = citation.find("div", {"class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {"data-selenium-selector": "paper-year"}).get_text()
-                        citation_response[title]['show_semantic'] = True
+                        citation_response[title.lower().title().replace(".", "")] = {}
+                        citation_response[title.lower().title().replace(".", "")]['title'] = title
+                        citation_response[title.lower().title().replace(".", "")]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
+                        citation_response[title.lower().title().replace(".", "")]['year'] = citation.find("div", {"class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {"data-selenium-selector": "paper-year"}).get_text()
+                        citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
                         if len(citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})):
-                            citation_response[title]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
+                            citation_response[title.lower().title().replace(".", "")]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
                         else:
-                            citation_response[title]['domains'] = '-'
-                        citation_response[title]['authors'] = citation.findChildren("span", {"class": "author-list"})[0].get_text()
+                            citation_response[title.lower().title().replace(".", "")]['domains'] = '-'
+                        citation_response[title.lower().title().replace(".", "")]['authors'] = citation.findChildren("span", {"class": "author-list"})[0].get_text()
                     citations_counter = citations_counter + 1
             else:
                 paper_citation = semantic_publications_data.findChildren("div", {"class": "paper-citation"})
@@ -516,13 +516,13 @@ def get_citations_for_publications(author_name, publication_name):
                     title = citation.find("div", {"class": "citation__body"}).find("a").find("span").find(
                         "span").get_text()
                     title_cpy = title
-                    citation_response[title] = {}
-                    citation_response[title]['title'] = title
-                    citation_response[title]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
-                    citation_response[title]['year'] = citation.find("div", {"class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {"data-selenium-selector": "paper-year"}).get_text()
-                    citation_response[title]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
-                    citation_response[title]['authors'] = citation_response.findChildren("span", {"class": "author-list"})[0].get_text()
-                    citation_response[title]['show_semantic'] = True
+                    citation_response[title.lower().title().replace(".", "")] = {}
+                    citation_response[title.lower().title().replace(".", "")]['title'] = title
+                    citation_response[title.lower().title().replace(".", "")]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
+                    citation_response[title.lower().title().replace(".", "")]['year'] = citation.find("div", {"class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {"data-selenium-selector": "paper-year"}).get_text()
+                    citation_response[title.lower().title().replace(".", "")]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
+                    citation_response[title.lower().title().replace(".", "")]['authors'] = citation_response.findChildren("span", {"class": "author-list"})[0].get_text()
+                    citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
             return citation_response
         else:
             return {"message": "This article doesn't have citations on Semantic Scholar"}
@@ -730,12 +730,26 @@ def publication_cites():
                     publication_response['publications'][title.lower().title().replace(".", "")]['year'] = re.findall(r"(?<!\d)\d{4,7}(?!\d)", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[0]
                 else:
                     publication_response['publications'][title.lower().title().replace(".", "")]['year'] = ''
-    if len(publication_response['publications']):
-        return jsonify({'scholar_citations': publication_response})
-    else:
+                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
+                if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                    authors_arr = [item.get_text() for item in pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                    for author in authors_arr:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] += author + ', '
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = publication_response['publications'][title.lower().title().replace(".", "")]['authors'].replace("... ", "")
+                else:
+                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0]
+    # if len(publication_response['publications']):
+    #     return jsonify({'scholar_citations': publication_response})
+    # else:
         alternative_pub_response = get_citations_for_publications(author_name, publication_name)
-        if len(alternative_pub_response) > 0:
-            return jsonify({'semantic_citations': alternative_pub_response})
+        for (key,item) in alternative_pub_response.items():
+            if key not in publication_response['publications']:
+                publication_response['publications'][key] = item
+            else:
+                publication_response['publications'][key]['domains'] = item['domains']
+                publication_response['publications'][key]['link'] = item['link']
+        if len(publication_response['publications']) > 0:
+            return jsonify({'scholar_citations': publication_response})
         else:
             return jsonify({'message': 'no citations found'})
 
