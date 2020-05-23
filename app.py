@@ -508,7 +508,7 @@ def get_citations_for_publications(author_name, publication_name):
                             citation_response[title.lower().title().replace(".", "")]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
                         else:
                             citation_response[title.lower().title().replace(".", "")]['domains'] = '-'
-                        citation_response[title.lower().title().replace(".", "")]['authors'] = citation.findChildren("span", {"class": "author-list"})[0].get_text()
+                        citation_response[title.lower().title().replace(".", "")]['authors'] = replace_romanian_letters(citation.findChildren("span", {"class": "author-list"})[0].get_text())
                     citations_counter = citations_counter + 1
             else:
                 paper_citation = semantic_publications_data.findChildren("div", {"class": "paper-citation"})
@@ -521,7 +521,7 @@ def get_citations_for_publications(author_name, publication_name):
                     citation_response[title.lower().title().replace(".", "")]['link'] = "https://www.semanticscholar.org" + citation.find("div", {"class": "citation__body"}).find("a")["href"]
                     citation_response[title.lower().title().replace(".", "")]['year'] = citation.find("div", {"class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {"data-selenium-selector": "paper-year"}).get_text()
                     citation_response[title.lower().title().replace(".", "")]['domains'] = citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
-                    citation_response[title.lower().title().replace(".", "")]['authors'] = citation_response.findChildren("span", {"class": "author-list"})[0].get_text()
+                    citation_response[title.lower().title().replace(".", "")]['authors'] = replace_romanian_letters(citation_response.findChildren("span", {"class": "author-list"})[0].get_text())
                     citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
             return citation_response
         else:
@@ -699,6 +699,19 @@ def publication_cites():
                     re.findall(r"(?<!\d)\d{4,7}(?!\d)", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[0]
                 else:
                     publication_response['publications'][title.lower().title().replace(".", "")]['year'] = ''
+                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
+                if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                    authors_arr = [item.get_text() for item in
+                                   pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                    for author in authors_arr:
+                        publication_response['publications'][title.lower().title().replace(".", "")][
+                            'authors'] += replace_romanian_letters(author) + ', '
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'].replace(
+                            "... ", "")
+                else:
+                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                    pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0]
             sql = "INSERT into publication_citations_scholar_pages(author_id, publication_name, html_page) VALUES(%s, %s, %s)"
             values = (author_id, publication_name, scholar_page_bytes)
             cursor.execute(sql, values)
@@ -734,15 +747,24 @@ def publication_cites():
                 if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
                     authors_arr = [item.get_text() for item in pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
                     for author in authors_arr:
-                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] += author + ', '
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] += replace_romanian_letters(author) + ', '
                         publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = publication_response['publications'][title.lower().title().replace(".", "")]['authors'].replace("... ", "")
                 else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0]
-    # if len(publication_response['publications']):
-    #     return jsonify({'scholar_citations': publication_response})
-    # else:
+                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = replace_romanian_letters(pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0])
         alternative_pub_response = get_citations_for_publications(author_name, publication_name)
         for (key,item) in alternative_pub_response.items():
+            if key not in publication_response['publications']:
+                publication_response['publications'][key] = item
+            else:
+                publication_response['publications'][key]['domains'] = item['domains']
+                publication_response['publications'][key]['link'] = item['link']
+        if len(publication_response['publications']) > 0:
+            return jsonify({'scholar_citations': publication_response})
+        else:
+            return jsonify({'message': 'no citations found'})
+    else:
+        alternative_pub_response = get_citations_for_publications(author_name, publication_name)
+        for (key, item) in alternative_pub_response.items():
             if key not in publication_response['publications']:
                 publication_response['publications'][key] = item
             else:
