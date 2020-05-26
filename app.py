@@ -303,6 +303,17 @@ def get_publications_for_author():
                     pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
                         0].findChildren("a")[
                         2].get_text().split(" ")[2]
+                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
+                if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                    authors_arr = [item.get_text() for item in
+                                   pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                    for author in authors_arr:
+                        publication_response['publications'][title.lower().title().replace(".", "")][
+                            'authors'] += replace_romanian_letters(author) + ', '
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                'authors'].replace(
+                                "... ", "")
                 publication_response['publications'][title.lower().title().replace(".", "")]['publication_name'] = '-'
                 publication_response['publications'][title.lower().title().replace(".", "")][
                     'cited_by_link_scholar'] = 'https://scholar.google.com' + \
@@ -365,6 +376,7 @@ def get_publications_for_author():
                         'eprint'] = '-'
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['year'] = \
                         item['prism:coverDate'].split('-')[0]
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['authors'] = replace_romanian_letters(item['dc:creator'])
                     #publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['scopus_pub_citations'] = get_citations_for_publications(author_name, item['dc:title'].lower().title().replace(".", ""))
 
         authors_dblp = requests.get('http://dblp.org/search/publ/api?q=' + author_name + '&format=json').content
@@ -396,6 +408,12 @@ def get_publications_for_author():
                     'publication_name'] = '-'
                 publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
                     'eprint'] = '-'
+                publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['authors'] = ""
+                if type(item['info']['authors']['author']) is list:
+                    for author in item['info']['authors']['author']:
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['authors'] = publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['authors'] + replace_romanian_letters(author['text']) + ", "
+                elif type(item['info']['authors']['author']) is dict:
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['authors'] += replace_romanian_letters(item['info']['authors']['author']['text']) + " ,"
                 #publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['dblp_pub_citations'] = get_citations_for_publications(author_name, item['info']['title'].lower().title().replace(".", ""))
                 if 'venue' in item['info']:
                     publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
@@ -610,6 +628,8 @@ def get_searched_publications_for_author():
                         'eprint_scopus'] = '-'
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['year'] = \
                         item['prism:coverDate'].split('-')[0]
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['authors'] = \
+                    item['dc:creator']
 
     if len(publication_response['publications']) == 0:
         authors_dblp = requests.get('http://dblp.org/search/publ/api?q=' + author_name + '&format=json').content
@@ -632,6 +652,10 @@ def get_searched_publications_for_author():
                     publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
                         'year'] = \
                         item['info']['year']
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'authors'] = ''
+                    for author in item['info']['authors']['author']:
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['authors'] += author['text'] + ', '
 
     # except Exception as e:
     # return jsonify({'error': str(err)})
