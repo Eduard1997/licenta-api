@@ -558,50 +558,122 @@ def get_searched_publications_for_author():
     publication_name = request.json['publicationName'].lower().title().replace(".", "")
 
     scholar_url = 'https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=' + request.json['authorName']
-    scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
+
+    search_existing_author_query = 'SELECT id FROM authors WHERE name LIKE %s'
+    search_existing_author_values = author_name
+    cursor.execute(search_existing_author_query, '%' + search_existing_author_values + '%')
+    author_id = cursor.fetchall()
+    scholar_found = False
+
+    if len(author_id):
+        search_existing_page = 'SELECT author_page FROM authors_scholar_pages WHERE author_id = %s'
+        cursor.execute(search_existing_page, author_id)
+        author_page = cursor.fetchall()
+
+    if len(author_page):
+        scholar_page = BeautifulSoup(author_page[0][0], 'html.parser')
+    else:
+        scholar_page = BeautifulSoup(requests.get(scholar_url).content, 'html.parser')
+
     author_publications = scholar_page.find("div", {"id": "gs_res_ccl"})
+    #author_publications = None
     if author_publications is not None:
-        pages = scholar_page.findChildren("div", {
-            "id": "gs_res_ccl_bot"})  # [0].findChildren("div", {"role": "navigation"})[0].findChildren("table")[0].findChildren("a")
-    author_publications = None
-    if author_publications is not None:
-        for page in pages:
-            if page.get_text() != 'Next':
-                scholar_page = BeautifulSoup(requests.get('https://scholar.google.com' + page['href']).content,
-                                             'html.parser')
-                author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",
-                                                                                                  {"class": "gs_scl"})
-                for pub in author_publications:
-                    title = pub.findChildren("h3", {"class": "gs_rt"})[0]
-                    if len(title.findChildren("a")):
-                        title = title.findChildren("a")[0].get_text()
-                        if title.lower().title().replace(".", "") == publication_name:
-                            publication_response['publications'][title.lower().title().replace(".", "")] = {}
+        pages = scholar_page.findChildren("div", {"id": "gs_res_ccl_bot"})[0].findChildren("div", {"role": "navigation"})[0].findChildren("table")[0].findChildren("a")
+        author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div", {"class": "gs_scl"})
+        for pub in author_publications:
+            title = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0].get_text()
+            if title.lower().title().replace(".", "") == publication_name:
+                publication_response['publications'][title.lower().title().replace(".", "")] = {}
+                publication_response['publications'][title.lower().title().replace(".", "")][
+                    'title'] = title.lower().title().replace(".", "")
+                publication_response['publications'][title.lower().title().replace(".", "")]['url'] = \
+                    pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
+                publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = \
+                    pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                        0].findChildren("a")[
+                        2].get_text().split(" ")[2]
+                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
+                if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                    authors_arr = [item.get_text() for item in
+                                   pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                    for author in authors_arr:
+                        publication_response['publications'][title.lower().title().replace(".", "")][
+                            'authors'] += replace_romanian_letters(author) + ', '
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
                             publication_response['publications'][title.lower().title().replace(".", "")][
-                                'title'] = title.lower().title().replace(".", "")
-                            publication_response['publications'][title.lower().title().replace(".", "")]['url'] = \
-                            pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
-                            publication_response['publications'][title.lower().title().replace(".", "")][
-                                'cited_by_scholar'] = \
-                                pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
-                                    0].findChildren("a")[2].get_text().split(" ")[2]
-                            publication_response['publications'][title.lower().title().replace(".", "")][
-                                'cited_by_link_scholar'] = 'https://scholar.google.com' + \
-                                                           pub.findChildren("div", {"class": "gs_ri"})[0].findChildren(
-                                                               "div", {"class": "gs_fl"})[0].findChildren("a")[2][
-                                                               "href"]
-                            if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
-                                publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = \
-                                pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
-                            else:
-                                publication_response['publications'][title.lower().title().replace(".", "")][
-                                    'eprint'] = ""
-                            publication_response['publications'][title.lower().title().replace(".", "")]['year'] = \
-                            re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[
-                                len(re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())) - 1]
+                                'authors'].replace(
+                                "... ", "")
+                publication_response['publications'][title.lower().title().replace(".", "")]['publication_name'] = '-'
+                publication_response['publications'][title.lower().title().replace(".", "")][
+                    'cited_by_link_scholar'] = 'https://scholar.google.com' + \
+                                               pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {
+                                                   "class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                # publication_response['publications'][title.lower().title().replace(".", "")][
+                #     'publication_citation'] = publication_cites(
+                #     publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link_scholar'])
+                if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
+                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = \
+                        pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
+                else:
+                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
+                publication_response['publications'][title.lower().title().replace(".", "")]['year'] = \
+                    re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[
+                        len(re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())) - 1]
+
+        if len(publication_response['publications']) == 0:
+            for page in pages:
+                if not scholar_found:
+                    if page.get_text() != 'Next':
+                        scholar_page = BeautifulSoup(requests.get('https://scholar.google.com' + page['href']).content, 'html.parser')
+                        author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div", {"class": "gs_scl"})
+                        for pub in author_publications:
+                            if len(pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")) > 0:
+                                title = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0].get_text()
+                                if title.lower().title().replace(".", "") == publication_name:
+                                    scholar_found = True
+                                    publication_response['publications'][title.lower().title().replace(".", "")] = {}
+                                    publication_response['publications'][title.lower().title().replace(".", "")][
+                                        'title'] = title.lower().title().replace(".", "")
+                                    publication_response['publications'][title.lower().title().replace(".", "")]['url'] = \
+                                        pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
+                                    publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = \
+                                        pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                                            0].findChildren("a")[
+                                            2].get_text().split(" ")[2]
+                                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
+                                    if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                                        authors_arr = [item.get_text() for item in
+                                                       pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                                        for author in authors_arr:
+                                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                                'authors'] += replace_romanian_letters(author) + ', '
+                                            publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                                                publication_response['publications'][title.lower().title().replace(".", "")][
+                                                    'authors'].replace(
+                                                    "... ", "")
+                                    publication_response['publications'][title.lower().title().replace(".", "")]['publication_name'] = '-'
+                                    publication_response['publications'][title.lower().title().replace(".", "")][
+                                        'cited_by_link_scholar'] = 'https://scholar.google.com' + \
+                                                                   pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {
+                                                                       "class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                                    # publication_response['publications'][title.lower().title().replace(".", "")][
+                                    #     'publication_citation'] = publication_cites(
+                                    #     publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_link_scholar'])
+                                    if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
+                                        publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = \
+                                            pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
+                                    else:
+                                        publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
+                                    publication_response['publications'][title.lower().title().replace(".", "")]['year'] = \
+                                        re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[
+                                            len(re.findall(r"\d+", pub.findChildren("div", {"class": "gs_a"})[0].get_text())) - 1]
+        if len(author_page) == 0:
+            sql = "INSERT into authors_scholar_pages(author_id, author_page) VALUES(%s, %s)"
+            values = (author_id, requests.get(scholar_url).content)
+            cursor.execute(sql, values)
+            conn.commit()
     else:
         print('scholar publications null')
-
     if len(publication_response['publications']) == 0:
         scopus_author_data = requests.get(
             'http://api.elsevier.com/content/search/scopus?query=' + publication_name + '&apiKey=acf90e6867d5a1b99ca5ba2f91935664').content
