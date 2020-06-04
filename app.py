@@ -702,6 +702,27 @@ def get_searched_publications_for_author():
                         item['prism:coverDate'].split('-')[0]
                     publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['authors'] = \
                     item['dc:creator']
+    else:
+        scopus_author_data = requests.get(
+            'http://api.elsevier.com/content/search/scopus?query=' + publication_name + '&apiKey=acf90e6867d5a1b99ca5ba2f91935664').content
+        decode_scopus_author_data = json.loads(scopus_author_data)
+        if 'error' not in decode_scopus_author_data['search-results']['entry'][0]:
+            for item in decode_scopus_author_data['search-results']['entry']:
+                if item['dc:title'].lower().title().replace(".", "") in publication_response['publications']:
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'scopus_link'] = item['link'][2]['@href']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'scopus_aggregation_type'] = item['prism:aggregationType']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'scopus_subtype_description'] = item['subtypeDescription']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'publication_name'] = item['prism:publicationName']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'cited_by_scopus'] = item['citedby-count']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'cited_by_link_scopus'] = item['link'][3]['@href']
+                    publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        'eprint'] = '-'
 
     if len(publication_response['publications']) == 0:
         authors_dblp = requests.get('http://dblp.org/search/publ/api?q=' + author_name + '&format=json').content
@@ -728,6 +749,20 @@ def get_searched_publications_for_author():
                         'authors'] = ''
                     for author in item['info']['authors']['author']:
                         publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['authors'] += author['text'] + ', '
+    else:
+        authors_dblp = requests.get('http://dblp.org/search/publ/api?q=' + author_name + '&format=json').content
+        authors_dblp_decoded = json.loads(authors_dblp)
+        if authors_dblp_decoded['result']['hits']['hit'] is not None:
+            for item in authors_dblp_decoded['result']['hits']['hit']:
+                if item['info']['title'].lower().title().replace(".", "") in publication_response['publications']:
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'dblp_link'] = item['info']['url']
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'dblp_type'] = item['info']['type']
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'dblp_venue'] = item['info']['venue']
+                    publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        'eprint'] = '-'
 
     # except Exception as e:
     # return jsonify({'error': str(err)})
