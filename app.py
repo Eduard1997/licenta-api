@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, send_from_directory, send_file
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flaskext.mysql import MySQL
 import requests
