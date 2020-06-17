@@ -447,69 +447,93 @@ def get_publications_for_author():
 
 
 def get_citations_for_publications(author_name, publication_name):
-    title_cpy = ''
-    article_semantic_link = ''
-    semantic_initial_url = 'https://www.semanticscholar.org/api/1/search'
-    semantic_initial_payload = {
-        "authors": [],
-        "coAuthors": [],
-        "externalContentTypes": [],
-        "page": 1,
-        "pageSize": 10,
-        "performTitleMatch": True,
-        "publicationTypes": [],
-        "queryString": author_name,
-        "requireViewablePdf": False,
-        "sort": "relevance",
-        "useRankerService": True,
-        "venues": [],
-        "yearFilter": None
-    }
-    headers = {"Content-Type": "application/json"}
-    semantic_page_data = json.loads(
-        requests.post(semantic_initial_url, data=json.dumps(semantic_initial_payload), headers=headers).content)
-    semantic_author_id = semantic_page_data["results"][0]["authors"][0][0]['ids'][0]
-    semantic_author_slug = semantic_page_data["results"][0]["authors"][0][0]['slug']
-    semantic_author_details_url = "https://www.semanticscholar.org/author/" + semantic_author_slug + "/" + semantic_author_id
-    semantic_author_page_data = BeautifulSoup(requests.get(semantic_author_details_url).content, 'html.parser')
-    pages = semantic_author_page_data.find("ul", {"class": "pagination"}).findChildren("a")
-    pages_arr = []
-    for page in pages:
-        if page.get_text().isdigit():
-            pages_arr.append(int(page.get_text()))
+    try:
+        title_cpy = ''
+        article_semantic_link = ''
+        semantic_initial_url = 'https://www.semanticscholar.org/api/1/search'
+        semantic_initial_payload = {
+            "authors": [],
+            "coAuthors": [],
+            "externalContentTypes": [],
+            "page": 1,
+            "pageSize": 10,
+            "performTitleMatch": True,
+            "publicationTypes": [],
+            "queryString": author_name,
+            "requireViewablePdf": False,
+            "sort": "relevance",
+            "useRankerService": True,
+            "venues": [],
+            "yearFilter": None
+        }
+        headers = {"Content-Type": "application/json"}
+        semantic_page_data = json.loads(
+            requests.post(semantic_initial_url, data=json.dumps(semantic_initial_payload), headers=headers).content)
+        semantic_author_id = semantic_page_data["results"][0]["authors"][0][0]['ids'][0]
+        semantic_author_slug = semantic_page_data["results"][0]["authors"][0][0]['slug']
+        semantic_author_details_url = "https://www.semanticscholar.org/author/" + semantic_author_slug + "/" + semantic_author_id
+        semantic_author_page_data = BeautifulSoup(requests.get(semantic_author_details_url).content, 'html.parser')
+        pages = semantic_author_page_data.find("ul", {"class": "pagination"}).findChildren("a")
+        pages_arr = []
+        for page in pages:
+            if page.get_text().isdigit():
+                pages_arr.append(int(page.get_text()))
 
-    counter = 0
-    while counter < len(pages_arr) - 1:
-        semantic_author_details_url = "https://www.semanticscholar.org/author/" + semantic_author_slug + "/" + semantic_author_id + "?page=" + str(
-            pages_arr[counter])
-        semantic_publications_data = BeautifulSoup(requests.get(semantic_author_details_url).content, 'html.parser')
-        publications_containers = semantic_publications_data.find_all("article", {"class": "search-result"})
-        for article in publications_containers:
-            if article.find("a").find("span").find("span").get_text() == publication_name:
-                article_semantic_link = "https://www.semanticscholar.org" + article.find("a")['href']
-                counter = len(pages_arr) - 1
-                break
+        counter = 0
+        while counter < len(pages_arr) - 1:
+            semantic_author_details_url = "https://www.semanticscholar.org/author/" + semantic_author_slug + "/" + semantic_author_id + "?page=" + str(
+                pages_arr[counter])
+            semantic_publications_data = BeautifulSoup(requests.get(semantic_author_details_url).content, 'html.parser')
+            publications_containers = semantic_publications_data.find_all("article", {"class": "search-result"})
+            for article in publications_containers:
+                if article.find("a").find("span").find("span").get_text() == publication_name:
+                    article_semantic_link = "https://www.semanticscholar.org" + article.find("a")['href']
+                    counter = len(pages_arr) - 1
+                    break
+            if len(article_semantic_link) == 0:
+                counter = counter + 1
         if len(article_semantic_link) == 0:
-            counter = counter + 1
-    if len(article_semantic_link) == 0:
-        return {"message": "Article not found on Semantic Scholar"}
-    else:
-        citations_pages = []
-        citations_counter = 0
-        citation_response = {}
-        semantic_publications_data = BeautifulSoup(requests.get(article_semantic_link).content, 'html.parser')
-        if semantic_publications_data.find("div", {"id": "citing-papers"}).find("div", {
-            "class": "citation-pagination"}) is not None:
-            citations_pages_container = semantic_publications_data.find("div", {"id": "citing-papers"}).find("div", {
-                "class": "citation-pagination"}).findChildren("a")
+            return {"message": "Article not found on Semantic Scholar"}
         else:
-            citations_pages_container = ''
-        if len(semantic_publications_data.find("div", {"id": "citing-papers"})) > 0:
-            if citations_pages_container:
-                for page in citations_pages_container:
-                    if page.get_text().isdigit():
-                        citations_pages.append(int(page.get_text()))
-                while citations_counter < len(citations_pages) - 1:
+            citations_pages = []
+            citations_counter = 0
+            citation_response = {}
+            semantic_publications_data = BeautifulSoup(requests.get(article_semantic_link).content, 'html.parser')
+            if semantic_publications_data.find("div", {"id": "citing-papers"}).find("div", {
+                "class": "citation-pagination"}) is not None:
+                citations_pages_container = semantic_publications_data.find("div", {"id": "citing-papers"}).find("div", {
+                    "class": "citation-pagination"}).findChildren("a")
+            else:
+                citations_pages_container = ''
+            if len(semantic_publications_data.find("div", {"id": "citing-papers"})) > 0:
+                if citations_pages_container:
+                    for page in citations_pages_container:
+                        if page.get_text().isdigit():
+                            citations_pages.append(int(page.get_text()))
+                    while citations_counter < len(citations_pages) - 1:
+                        paper_citation = semantic_publications_data.findChildren("div", {"class": "paper-citation"})
+                        for citation in paper_citation:
+                            title = citation.find("div", {"class": "citation__body"}).find("a").find("span").find(
+                                "span").get_text()
+                            title_cpy = title
+                            citation_response[title.lower().title().replace(".", "")] = {}
+                            citation_response[title.lower().title().replace(".", "")]['title'] = title
+                            citation_response[title.lower().title().replace(".", "")][
+                                'link'] = "https://www.semanticscholar.org" + \
+                                          citation.find("div", {"class": "citation__body"}).find("a")["href"]
+                            citation_response[title.lower().title().replace(".", "")]['year'] = citation.find("div", {
+                                "class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {
+                                "data-selenium-selector": "paper-year"}).get_text()
+                            citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
+                            if len(citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})):
+                                citation_response[title.lower().title().replace(".", "")]['domains'] = \
+                                citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
+                            else:
+                                citation_response[title.lower().title().replace(".", "")]['domains'] = '-'
+                            citation_response[title.lower().title().replace(".", "")]['authors'] = replace_romanian_letters(
+                                citation.findChildren("span", {"class": "author-list"})[0].get_text())
+                        citations_counter = citations_counter + 1
+                else:
                     paper_citation = semantic_publications_data.findChildren("div", {"class": "paper-citation"})
                     for citation in paper_citation:
                         title = citation.find("div", {"class": "citation__body"}).find("a").find("span").find(
@@ -523,38 +547,17 @@ def get_citations_for_publications(author_name, publication_name):
                         citation_response[title.lower().title().replace(".", "")]['year'] = citation.find("div", {
                             "class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {
                             "data-selenium-selector": "paper-year"}).get_text()
-                        citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
-                        if len(citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})):
-                            citation_response[title.lower().title().replace(".", "")]['domains'] = \
-                            citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
-                        else:
-                            citation_response[title.lower().title().replace(".", "")]['domains'] = '-'
+                        citation_response[title.lower().title().replace(".", "")]['domains'] = \
+                        citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
                         citation_response[title.lower().title().replace(".", "")]['authors'] = replace_romanian_letters(
-                            citation.findChildren("span", {"class": "author-list"})[0].get_text())
-                    citations_counter = citations_counter + 1
+                            citation_response.findChildren("span", {"class": "author-list"})[0].get_text())
+                        citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
             else:
-                paper_citation = semantic_publications_data.findChildren("div", {"class": "paper-citation"})
-                for citation in paper_citation:
-                    title = citation.find("div", {"class": "citation__body"}).find("a").find("span").find(
-                        "span").get_text()
-                    title_cpy = title
-                    citation_response[title.lower().title().replace(".", "")] = {}
-                    citation_response[title.lower().title().replace(".", "")]['title'] = title
-                    citation_response[title.lower().title().replace(".", "")][
-                        'link'] = "https://www.semanticscholar.org" + \
-                                  citation.find("div", {"class": "citation__body"}).find("a")["href"]
-                    citation_response[title.lower().title().replace(".", "")]['year'] = citation.find("div", {
-                        "class": "citation__body"}).find("div", {"class": "citation__meta"}).find("li", {
-                        "data-selenium-selector": "paper-year"}).get_text()
-                    citation_response[title.lower().title().replace(".", "")]['domains'] = \
-                    citation.findChildren("li", {"data-selenium-selector": "fields-of-study"})[0].get_text()
-                    citation_response[title.lower().title().replace(".", "")]['authors'] = replace_romanian_letters(
-                        citation_response.findChildren("span", {"class": "author-list"})[0].get_text())
-                    citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
-            return citation_response
-        else:
-            return {"message": "This article doesn't have citations on Semantic Scholar"}
-
+                return {"message": "This article doesn't have citations on Semantic Scholar"}
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    else:
+        return citation_response
 
 @application.route('/get-searched-publication', methods=['POST'])
 def get_searched_publications_for_author():
@@ -802,171 +805,174 @@ def get_searched_publications_for_author():
 
 @application.route('/get-citations-for-publication', methods=['POST'])
 def publication_cites():
-    author_page = ''
-    publication_response = ''
-    scholar_page_bytes = ''
-    publication_response = {}
-    publication_response['publications'] = {}
-    author_name = request.json['authorName']
-    publication_name = request.json['publicationName']
-    scholar_url = request.json['scholarURL']
-    conn = mysql.connect()
-    cursor = conn.cursor()
+    try:
+        author_page = ''
+        publication_response = ''
+        scholar_page_bytes = ''
+        publication_response = {}
+        publication_response['publications'] = {}
+        author_name = request.json['authorName']
+        publication_name = request.json['publicationName']
+        scholar_url = request.json['scholarURL']
+        conn = mysql.connect()
+        cursor = conn.cursor()
 
-    search_existing_author_query = 'SELECT id FROM authors WHERE name LIKE %s'
-    search_existing_author_values = author_name
-    cursor.execute(search_existing_author_query, '%' + search_existing_author_values + '%')
-    author_id = cursor.fetchall()
-    if scholar_url != '-':
-        if len(author_id):
-            search_existing_page = 'SELECT html_page FROM publication_citations_scholar_pages WHERE author_id = %s AND publication_name = %s'
-            cursor.execute(search_existing_page, (author_id, publication_name))
-            author_page = cursor.fetchall()
-        if len(author_page) == 0:
-            scholar_page_bytes = requests.get(scholar_url).content
-            scholar_page = BeautifulSoup(scholar_page_bytes, 'html.parser')
-            author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",
-                                                                                              {"class": "gs_scl"})
-            publication_response = {}
-            publication_response['publications'] = {}
-            for pub in author_publications:
-                title = \
-                    pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("h3", {"class": "gs_rt"})[
-                        0].findChildren("a")[
-                        0].get_text()
-                publication_response['publications'][title.lower().title().replace(".", "")] = {}
-                publication_response['publications'][title.lower().title().replace(".", "")][
-                    'title'] = title.lower().title().replace(".", "")
-                publication_response['publications'][title.lower().title().replace(".", "")]['url'] = \
-                    pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
-                if len(pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
-                           0].findChildren("a")[2].get_text().split(" ")) > 2:
-                    if pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
-                        0].findChildren("a")[2].get_text().split(" ")[2].isdigit():
-                        publication_response['publications'][title.lower().title().replace(".", "")][
-                            'cited_by_scholar'] = \
-                        pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
-                            0].findChildren("a")[2].get_text().split(" ")[2]
-                    else:
-                        publication_response['publications'][title.lower().title().replace(".", "")][
-                            'cited_by_scholar'] = 0
-                else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = 0
-                publication_response['publications'][title.lower().title().replace(".", "")][
-                    'cited_by_link_scholar'] = 'https://scholar.google.com' + \
-                                               pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {
-                                                   "class": "gs_fl"})[0].findChildren("a")[2]["href"]
-                if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
-                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = \
-                        pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
-                else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
-                if len(re.findall(r"(?<!\d)\d{4,7}(?!\d)",
-                                  pub.findChildren("div", {"class": "gs_a"})[0].get_text())) > 0:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['year'] = \
-                        re.findall(r"(?<!\d)\d{4,7}(?!\d)", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[0]
-                else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['year'] = ''
-                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
-                if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
-                    authors_arr = [item.get_text() for item in
-                                   pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
-                    for author in authors_arr:
-                        publication_response['publications'][title.lower().title().replace(".", "")][
-                            'authors'] += replace_romanian_letters(author) + ', '
-                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
-                            publication_response['publications'][title.lower().title().replace(".", "")][
-                                'authors'].replace(
-                                "... ", "")
-                else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
-                        pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0]
-            sql = "INSERT into publication_citations_scholar_pages(author_id, publication_name, html_page) VALUES(%s, %s, %s)"
-            values = (author_id, publication_name, scholar_page_bytes)
-            cursor.execute(sql, values)
-            conn.commit()
-        else:
-            scholar_page = BeautifulSoup(author_page[0][0], 'html.parser')
-            author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",
-                                                                                              {"class": "gs_scl"})
-
-            publication_response = {}
-            publication_response['publications'] = {}
-            for pub in author_publications:
-                title = \
-                pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("h3", {"class": "gs_rt"})[0].findChildren(
-                    "a")[0].get_text()
-                publication_response['publications'][title.lower().title().replace(".", "")] = {}
-                publication_response['publications'][title.lower().title().replace(".", "")][
-                    'title'] = title.lower().title().replace(".", "")
-                publication_response['publications'][title.lower().title().replace(".", "")]['url'] = \
-                pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
-                if len(pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
-                           0].findChildren("a")[2].get_text().split(" ")) > 2:
-                    if pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
-                        0].findChildren("a")[2].get_text().split(" ")[2].isdigit():
-                        publication_response['publications'][title.lower().title().replace(".", "")][
-                            'cited_by_scholar'] = \
-                        pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
-                            0].findChildren("a")[2].get_text().split(" ")[2]
-                    else:
-                        publication_response['publications'][title.lower().title().replace(".", "")][
-                            'cited_by_scholar'] = 0
-                else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = 0
-                publication_response['publications'][title.lower().title().replace(".", "")][
-                    'cited_by_link_scholar'] = 'https://scholar.google.com' + \
-                                               pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {
-                                                   "class": "gs_fl"})[0].findChildren("a")[2]["href"]
-                if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
-                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = \
-                    pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
-                else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
-                if len(re.findall(r"(?<!\d)\d{4,7}(?!\d)",
-                                  pub.findChildren("div", {"class": "gs_a"})[0].get_text())) > 0:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['year'] = \
-                    re.findall(r"(?<!\d)\d{4,7}(?!\d)", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[0]
-                else:
-                    publication_response['publications'][title.lower().title().replace(".", "")]['year'] = ''
-                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
-                if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
-                    authors_arr = [item.get_text() for item in
-                                   pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
-                    for author in authors_arr:
-                        publication_response['publications'][title.lower().title().replace(".", "")][
-                            'authors'] += replace_romanian_letters(author) + ', '
-                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
-                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'].replace(
-                            "... ", "")
-                else:
+        search_existing_author_query = 'SELECT id FROM authors WHERE name LIKE %s'
+        search_existing_author_values = author_name
+        cursor.execute(search_existing_author_query, '%' + search_existing_author_values + '%')
+        author_id = cursor.fetchall()
+        if scholar_url != '-':
+            if len(author_id):
+                search_existing_page = 'SELECT html_page FROM publication_citations_scholar_pages WHERE author_id = %s AND publication_name = %s'
+                cursor.execute(search_existing_page, (author_id, publication_name))
+                author_page = cursor.fetchall()
+            if len(author_page) == 0:
+                scholar_page_bytes = requests.get(scholar_url).content
+                scholar_page = BeautifulSoup(scholar_page_bytes, 'html.parser')
+                author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",
+                                                                                                  {"class": "gs_scl"})
+                publication_response = {}
+                publication_response['publications'] = {}
+                for pub in author_publications:
+                    title = \
+                        pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("h3", {"class": "gs_rt"})[
+                            0].findChildren("a")[
+                            0].get_text()
+                    publication_response['publications'][title.lower().title().replace(".", "")] = {}
                     publication_response['publications'][title.lower().title().replace(".", "")][
-                        'authors'] = replace_romanian_letters(
-                        pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0])
-        alternative_pub_response = get_citations_for_publications(author_name, publication_name)
-        for (key, item) in alternative_pub_response.items():
-            if key not in publication_response['publications']:
-                publication_response['publications'][key] = item
+                        'title'] = title.lower().title().replace(".", "")
+                    publication_response['publications'][title.lower().title().replace(".", "")]['url'] = \
+                        pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
+                    if len(pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                               0].findChildren("a")[2].get_text().split(" ")) > 2:
+                        if pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                            0].findChildren("a")[2].get_text().split(" ")[2].isdigit():
+                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                'cited_by_scholar'] = \
+                            pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                                0].findChildren("a")[2].get_text().split(" ")[2]
+                        else:
+                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                'cited_by_scholar'] = 0
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = 0
+                    publication_response['publications'][title.lower().title().replace(".", "")][
+                        'cited_by_link_scholar'] = 'https://scholar.google.com' + \
+                                                   pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {
+                                                       "class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                    if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
+                        publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = \
+                            pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
+                    if len(re.findall(r"(?<!\d)\d{4,7}(?!\d)",
+                                      pub.findChildren("div", {"class": "gs_a"})[0].get_text())) > 0:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['year'] = \
+                            re.findall(r"(?<!\d)\d{4,7}(?!\d)", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[0]
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['year'] = ''
+                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
+                    if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                        authors_arr = [item.get_text() for item in
+                                       pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                        for author in authors_arr:
+                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                'authors'] += replace_romanian_letters(author) + ', '
+                            publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                                publication_response['publications'][title.lower().title().replace(".", "")][
+                                    'authors'].replace(
+                                    "... ", "")
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                            pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0]
+                sql = "INSERT into publication_citations_scholar_pages(author_id, publication_name, html_page) VALUES(%s, %s, %s)"
+                values = (author_id, publication_name, scholar_page_bytes)
+                cursor.execute(sql, values)
+                conn.commit()
             else:
-                publication_response['publications'][key]['domains'] = item['domains']
-                publication_response['publications'][key]['link'] = item['link']
-        if len(publication_response['publications']) > 0:
-            return jsonify({'scholar_citations': publication_response})
-        else:
-            return jsonify({'message': 'no citations found'})
-    else:
-        alternative_pub_response = get_citations_for_publications(author_name, publication_name)
-        for (key, item) in alternative_pub_response.items():
-            if key not in publication_response['publications']:
-                publication_response['publications'][key] = item
-            else:
-                publication_response['publications'][key]['domains'] = item['domains']
-                publication_response['publications'][key]['link'] = item['link']
-        if len(publication_response['publications']) > 0:
-            return jsonify({'scholar_citations': publication_response})
-        else:
-            return jsonify({'message': 'no citations found'})
+                scholar_page = BeautifulSoup(author_page[0][0], 'html.parser')
+                author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div",
+                                                                                                  {"class": "gs_scl"})
 
+                publication_response = {}
+                publication_response['publications'] = {}
+                for pub in author_publications:
+                    title = \
+                    pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("h3", {"class": "gs_rt"})[0].findChildren(
+                        "a")[0].get_text()
+                    publication_response['publications'][title.lower().title().replace(".", "")] = {}
+                    publication_response['publications'][title.lower().title().replace(".", "")][
+                        'title'] = title.lower().title().replace(".", "")
+                    publication_response['publications'][title.lower().title().replace(".", "")]['url'] = \
+                    pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0]["href"]
+                    if len(pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                               0].findChildren("a")[2].get_text().split(" ")) > 2:
+                        if pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                            0].findChildren("a")[2].get_text().split(" ")[2].isdigit():
+                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                'cited_by_scholar'] = \
+                            pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[
+                                0].findChildren("a")[2].get_text().split(" ")[2]
+                        else:
+                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                'cited_by_scholar'] = 0
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = 0
+                    publication_response['publications'][title.lower().title().replace(".", "")][
+                        'cited_by_link_scholar'] = 'https://scholar.google.com' + \
+                                                   pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {
+                                                       "class": "gs_fl"})[0].findChildren("a")[2]["href"]
+                    if len(pub.findChildren("div", {"class": "gs_or_ggsm"})):
+                        publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = \
+                        pub.findChildren("div", {"class": "gs_or_ggsm"})[0].findChildren("a")[0]["href"]
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['eprint'] = ""
+                    if len(re.findall(r"(?<!\d)\d{4,7}(?!\d)",
+                                      pub.findChildren("div", {"class": "gs_a"})[0].get_text())) > 0:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['year'] = \
+                        re.findall(r"(?<!\d)\d{4,7}(?!\d)", pub.findChildren("div", {"class": "gs_a"})[0].get_text())[0]
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")]['year'] = ''
+                    publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
+                    if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                        authors_arr = [item.get_text() for item in
+                                       pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                        for author in authors_arr:
+                            publication_response['publications'][title.lower().title().replace(".", "")][
+                                'authors'] += replace_romanian_letters(author) + ', '
+                            publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                            publication_response['publications'][title.lower().title().replace(".", "")]['authors'].replace(
+                                "... ", "")
+                    else:
+                        publication_response['publications'][title.lower().title().replace(".", "")][
+                            'authors'] = replace_romanian_letters(
+                            pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0])
+            alternative_pub_response = get_citations_for_publications(author_name, publication_name)
+            for (key, item) in alternative_pub_response.items():
+                if key not in publication_response['publications']:
+                    publication_response['publications'][key] = item
+                else:
+                    publication_response['publications'][key]['domains'] = item['domains']
+                    publication_response['publications'][key]['link'] = item['link']
+            if len(publication_response['publications']) > 0:
+                return jsonify({'scholar_citations': publication_response})
+            else:
+                return jsonify({'message': 'no citations found'})
+        else:
+            alternative_pub_response = get_citations_for_publications(author_name, publication_name)
+            for (key, item) in alternative_pub_response.items():
+                if key not in publication_response['publications']:
+                    publication_response['publications'][key] = item
+                else:
+                    publication_response['publications'][key]['domains'] = item['domains']
+                    publication_response['publications'][key]['link'] = item['link']
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    else:
+        if len(publication_response['publications']) > 0:
+            return jsonify({'scholar_citations': publication_response})
+        else:
+            return jsonify({'message': 'no citations found'})
 
 # @application.after_request
 # def after_request(response):
