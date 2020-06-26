@@ -301,20 +301,23 @@ def get_publications_for_author():
                         publication_response['publications'][title.lower().title().replace(".", "")]['cited_by_scholar'] = re.findall(r'\d+', pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2].get_text())[0] if len(re.findall(r'\d+', pub.findChildren("div", {"class": "gs_ri"})[0].findChildren("div", {"class": "gs_fl"})[0].findChildren("a")[2].get_text())) > 0 else 0
                         publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = ''
 
-                        print(pub.findChildren("div", {"class": "gs_a"})[0].get_text())
-                        if len(pub.findChildren("div", {"class": "gs_a"})[0].get_text() > 0):
-                            publication_response['publications'][title.lower().title().replace(".", "")]['authors']
+                        if len(pub.findChildren("div", {"class": "gs_a"})[0].get_text()) > 0:
+                            publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = pub.findChildren("div", {"class": "gs_a"})[0].get_text().split('-')[0].replace('…', '')
+                            if publication_response['publications'][title.lower().title().replace(".", "")]['authors'][0] == ',':
+                                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = publication_response['publications'][title.lower().title().replace(".", "")]['authors'][1:]
+                        else:
+                            publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = '-'
 
-                        if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
-                            authors_arr = [item.get_text() for item in
-                                           pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
-                            for author in authors_arr:
-                                publication_response['publications'][title.lower().title().replace(".", "")][
-                                    'authors'] += replace_romanian_letters(author) + ', '
-                                publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
-                                    publication_response['publications'][title.lower().title().replace(".", "")][
-                                        'authors'].replace(
-                                        "... ", "")
+                        # if len(pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")) > 0:
+                        #     authors_arr = [item.get_text() for item in
+                        #                    pub.findChildren("div", {"class": "gs_a"})[0].findChildren("a")]
+                        #     for author in authors_arr:
+                        #         publication_response['publications'][title.lower().title().replace(".", "")][
+                        #             'authors'] += replace_romanian_letters(author) + ', '
+                        #         publication_response['publications'][title.lower().title().replace(".", "")]['authors'] = \
+                        #             publication_response['publications'][title.lower().title().replace(".", "")][
+                        #                 'authors'].replace(
+                        #                 "... ", "")
                         publication_response['publications'][title.lower().title().replace(".", "")]['publication_name'] = '-'
                         publication_response['publications'][title.lower().title().replace(".", "")][
                             'cited_by_link_scholar'] = 'https://scholar.google.com' + \
