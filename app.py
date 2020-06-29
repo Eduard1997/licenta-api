@@ -63,7 +63,7 @@ def hello():
 
 @application.route('/get-docs-by-author', methods=['POST'])
 def get_docs_by_author():
-    try:
+    #try:
         conn = mysql.connect()
         cursor = conn.cursor()
 
@@ -122,7 +122,7 @@ def get_docs_by_author():
                         author_cites_per_year.append(
                             {author_cites_years[i].get_text(): author_cites_years_links[i].get_text()})
 
-                author_total_cites = author_details_page.find("td", {"class": "gsc_rsb_std"}).get_text()
+                author_total_cites = author_details_page.find("td", {"class": "gsc_rsb_std"}).get_text() if author_details_page.find("td", {"class": "gsc_rsb_std"}) is not None else 0
                 author_hindex = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[2].get_text()
                 author_h5index = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[3].get_text()
                 author_h10index = author_details_page.find_all("td", {"class": "gsc_rsb_std"})[4].get_text()
@@ -140,8 +140,8 @@ def get_docs_by_author():
 
                 if len(author_coauthors_arr) == 0:
                     coauthors_reloaded = []
-                    author_first_name_request = request.json['author_name'].split(' ')[0]
-                    author_last_name_request = request.json['author_name'].split(' ')[1]
+                    author_first_name_request = replace_romanian_letters(request.json['author_name'].split(' ')[0]).lower().title()
+                    author_last_name_request = replace_romanian_letters(request.json['author_name'].split(' ')[1]).lower().title()
                     author_first_name_initial_request = author_first_name_request[0]
                     author_last_name_initial_request = author_last_name_request[0]
 
@@ -150,9 +150,11 @@ def get_docs_by_author():
                     author_first_name_initial = author_first_name[0]
                     author_last_name_initial = author_last_name[0]
                     coauthors_container = author_details_page.find_all("td", {"class": "gsc_a_t"})
+                    print(author_first_name)
                     for couauthor in coauthors_container:
                         coauthors_arr = couauthor.find("div").get_text().split(',')
                         for item in coauthors_arr:
+                            print(item)
                             if author_first_name_initial_request + ' ' + author_first_name in item:
                                 coauthors_arr.remove(item)
                             elif author_first_name_initial_request + ' ' + author_last_name in item:
@@ -172,6 +174,12 @@ def get_docs_by_author():
                             elif "..." in item:
                                 coauthors_arr.remove(item)
                             elif author_first_name == "Pistol" and "IC" in item:
+                                coauthors_arr.remove(item)
+                            elif author_first_name == "Cristian" and "C Vidrascu" == item:
+                                coauthors_arr.remove(item)
+                            elif author_first_name == "Cristian" and "C VIDRASCU" == item:
+                                coauthors_arr.remove(item)
+                            elif author_first_name == "Cristian" and "C VIDRAŞCU" == item:
                                 coauthors_arr.remove(item)
                         coauthors_reloaded.append(coauthors_arr)
                     final_coauthor_list = []
@@ -262,9 +270,9 @@ def get_docs_by_author():
                 author_response['interests'] = extra_details['interests']
                 author_response['coauthors'] = extra_details['coauthors']
 
-    except Exception as e:
-        return jsonify({'error': str(e)})
-    else:
+    #except Exception as e:
+        #return jsonify({'error': str(e)})
+    #else:
         return jsonify(author_response)
 
 
