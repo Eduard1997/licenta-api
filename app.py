@@ -63,7 +63,7 @@ def hello():
 
 @application.route('/get-docs-by-author', methods=['POST'])
 def get_docs_by_author():
-    #try:
+    try:
         conn = mysql.connect()
         cursor = conn.cursor()
 
@@ -150,11 +150,9 @@ def get_docs_by_author():
                     author_first_name_initial = author_first_name[0]
                     author_last_name_initial = author_last_name[0]
                     coauthors_container = author_details_page.find_all("td", {"class": "gsc_a_t"})
-                    print(author_first_name)
                     for couauthor in coauthors_container:
                         coauthors_arr = couauthor.find("div").get_text().split(',')
                         for item in coauthors_arr:
-                            print(item)
                             if author_first_name_initial_request + ' ' + author_first_name in item:
                                 coauthors_arr.remove(item)
                             elif author_first_name_initial_request + ' ' + author_last_name in item:
@@ -272,15 +270,15 @@ def get_docs_by_author():
                 author_response['interests'] = extra_details['interests']
                 author_response['coauthors'] = extra_details['coauthors']
 
-    #except Exception as e:
-        #return jsonify({'error': str(e)})
-    #else:
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    else:
         return jsonify(author_response)
 
 
 @application.route('/get-publications-for-author', methods=['POST'])
 def get_publications_for_author():
-    #try:
+    try:
         conn = mysql.connect()
         cursor = conn.cursor()
 
@@ -301,7 +299,8 @@ def get_publications_for_author():
                 author_publications = scholar_page.find("div", {"id": "gs_res_ccl"}).findChildren("div", {"class": "gs_scl"})
                 for pub in author_publications:
                     if len(pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")) > 0:
-                        title = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0].get_text().replace("#", "")
+                        title = pub.findChildren("h3", {"class": "gs_rt"})[0].findChildren("a")[0].get_text()
+                        title = title.replace("#", "")
                         publication_response['publications'][title.lower().title().replace(".", "")] = {}
                         publication_response['publications'][title.lower().title().replace(".", "")][
                             'title'] = title.lower().title().replace(".", "")
@@ -350,45 +349,45 @@ def get_publications_for_author():
             if decode_scopus_author_data['search-results']['entry'][0].get('error') is None:
                 for item in decode_scopus_author_data['search-results']['entry']:
                     if item['dc:title'].lower().title().replace(".", "") in publication_response['publications']:
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'scopus_link'] = item['link'][2]['@href']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'scopus_aggregation_type'] = item['prism:aggregationType']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'scopus_subtype_description'] = item['subtypeDescription']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'publication_name'] = item['prism:publicationName']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'cited_by_scopus'] = item['citedby-count']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'cited_by_link_scopus'] = item['link'][3]['@href']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'eprint'] = '-'
                         # publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['scopus_pub_citations'] = get_citations_for_publications(author_name, item['dc:title'].lower().title().replace(".", ""))
 
                     else:
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")] = {}
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['title'] = \
-                            item['dc:title'].lower().title().replace(".", "")
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['url'] = \
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")] = {}
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")]['title'] = \
+                            item['dc:title'].lower().title().replace(".", "").replace("#", "")
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")]['url'] = \
                             item['link'][2]['@href']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'scopus_aggregation_type'] = item['prism:aggregationType']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'scopus_subtype_description'] = item['subtypeDescription']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'publication_name'] = item['prism:publicationName']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'cited_by_scopus'] = item['citedby-count']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'cited_by_link_scopus'] = item['link'][3]['@href']
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'eprint_scopus'] = '-'
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'eprint'] = '-'
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['year'] = \
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")]['year'] = \
                             item['prism:coverDate'].split('-')[0]
-                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['dc:title'].lower().title().replace(".", "").replace("#", "")][
                             'authors'] = replace_romanian_letters(item['dc:creator'])
                         # publication_response['publications'][item['dc:title'].lower().title().replace(".", "")]['scopus_pub_citations'] = get_citations_for_publications(author_name, item['dc:title'].lower().title().replace(".", ""))
 
@@ -397,46 +396,46 @@ def get_publications_for_author():
             if "hit" in authors_dblp_decoded['result']['hits']:
                 for item in authors_dblp_decoded['result']['hits']['hit']:
                     if item['info']['title'].lower().title().replace(".", "") in publication_response['publications']:
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'dblp_link'] = item['info']['url']
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'dblp_type'] = item['info']['type']
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'dblp_venue'] = item['info']['venue']
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'eprint'] = '-'
                     else:
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")] = {}
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")] = {}
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'title'] = \
-                            item['info']['title'].lower().title().replace(".", "")
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                            item['info']['title'].lower().title().replace(".", "").replace("#", "")
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'url'] = \
                             item['info']['url']
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'dblp_type'] = item['info']['type']
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'dblp_link'] = item['info']['url']
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'publication_name'] = '-'
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'eprint'] = '-'
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'authors'] = ""
                         if type(item['info']['authors']['author']) is list:
                             for author in item['info']['authors']['author']:
-                                publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                                publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                                     'authors'] = \
-                                publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                                publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                                     'authors'] + replace_romanian_letters(author['text']) + ", "
                         elif type(item['info']['authors']['author']) is dict:
-                            publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                            publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                                 'authors'] += replace_romanian_letters(item['info']['authors']['author']['text']) + " ,"
                         # publication_response['publications'][item['info']['title'].lower().title().replace(".", "")]['dblp_pub_citations'] = get_citations_for_publications(author_name, item['info']['title'].lower().title().replace(".", ""))
                         if 'venue' in item['info']:
-                            publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                            publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                                 'dblp_venue'] = item['info']['venue']
-                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "")][
+                        publication_response['publications'][item['info']['title'].lower().title().replace(".", "").replace("#", "")][
                             'year'] = \
                             item['info']['year']
 
@@ -461,14 +460,14 @@ def get_publications_for_author():
                 publication_response['publications'][key] = value
                 publication_response['publications'][key]['url'] = value['url']
 
-    #except Exception as e:
-        #return jsonify({'error': str(e)})
-    #else:
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    else:
         return jsonify(publication_response)
 
 
 def get_citations_for_publications(author_name, publication_name):
-    #try:
+    try:
         title_cpy = ''
         article_semantic_link = ''
         semantic_author_slug = ''
@@ -584,9 +583,9 @@ def get_citations_for_publications(author_name, publication_name):
                         citation_response[title.lower().title().replace(".", "")]['show_semantic'] = True
             else:
                 return {"message": "This article doesn't have citations on Semantic Scholar"}
-    #except Exception as e:
-        #return jsonify({'error': str(e)})
-    #else:
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    else:
         return citation_response
 
 @application.route('/get-searched-publication', methods=['POST'])
@@ -835,7 +834,7 @@ def get_searched_publications_for_author():
 
 @application.route('/get-citations-for-publication', methods=['POST'])
 def publication_cites():
-    #try:
+    try:
         author_page = ''
         publication_response = ''
         scholar_page_bytes = ''
@@ -994,13 +993,13 @@ def publication_cites():
                 else:
                     publication_response['publications'][key]['domains'] = item['domains']
                     publication_response['publications'][key]['link'] = item['link']
-    #except Exception as e:
-        #return jsonify({'error': str(e)})
-    #else:
-        #if len(publication_response['publications']) > 0:
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    else:
+        if len(publication_response['publications']) > 0:
             return jsonify({'scholar_citations': publication_response})
-        #else:
-            #return jsonify({'message': 'no citations found'})
+        else:
+            return jsonify({'message': 'no citations found'})
 
 # @application.after_request
 # def after_request(response):
